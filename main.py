@@ -124,11 +124,13 @@ class EndlessGameMode:
         self.buttons = [
             Button(self.game, 56, 670, 'back_button.png', self.back_button_clicked)
         ]
+        self.maze = Maze(8, 8)
 
     def draw(self):
         self.game.screen.blit(self.image,(0,0))
         for button in self.buttons:
             button.draw()
+        self.maze.draw(self.game.screen, (353, 101), 575, 575)
 
     def buttons_clicked(self):
         for button in self.buttons:
@@ -173,6 +175,7 @@ class Maze:
         self.height = height
         self.stack = []
         self.array = self.create_2D_array(width, height)
+        self.generate()
 
     def create_2D_array(self, width, height):
         array = []
@@ -233,6 +236,75 @@ class Maze:
                 self.stack.append(next_node)
             else:
                 self.stack.pop()
+
+    def draw(self, screen, surface_pos, surface_width, surface_height, wall_colour=(255,255,255)):
+        # Determining the appropriate cell size from the ratio of space given to maze size
+        cell_size = min(surface_width // self.width, surface_height // self.height) # Take the smallest value as the node is a square
+        surface_x = surface_pos[0]
+        surface_y = surface_pos[1]
+        # Determine the coords of where to start drawing from to ensure the maze is aligned at the centre
+        start_x = surface_x + (surface_width - cell_size * self.width) // 2
+        start_y = surface_y + (surface_height - cell_size * self.height) // 2
+        wall_thickness = cell_size // 8 # Cell size : Wall thickenss ratio
+        # Draw border
+        top_border = pg.Rect(
+            start_x - wall_thickness,
+            start_y - wall_thickness,
+            cell_size * self.width + 2 * wall_thickness,
+            wall_thickness
+        )
+        pg.draw.rect(screen, wall_colour, top_border)
+        bottom_border = pg.Rect(
+            start_x - wall_thickness,
+            start_y + cell_size * self.height,
+            cell_size * self.width + 2 * wall_thickness,
+            wall_thickness
+        )
+        pg.draw.rect(screen, wall_colour, bottom_border)
+        left_border = pg.Rect(
+            start_x - wall_thickness,
+            start_y - wall_thickness,
+            wall_thickness,
+            cell_size * self.height + 2 * wall_thickness
+        )
+        pg.draw.rect(screen, wall_colour, left_border)
+        right_border = pg.Rect(
+            start_x + cell_size * self.width,
+            start_y - wall_thickness,
+            wall_thickness,
+            cell_size * self.height + 2 * wall_thickness
+        )
+        pg.draw.rect(screen, wall_colour, right_border)
+        # Draw cells
+        for x in range(self.width):
+            for y in range(self.height):
+                cell = self.array[x][y]
+                x_pos = start_x + x * cell_size
+                y_pos = start_y + y * cell_size
+
+                if cell.walls['top'] == True:
+                    top = pg.Rect(x_pos - wall_thickness, y_pos, cell_size + 2 * wall_thickness, wall_thickness)
+                    pg.draw.rect(screen, wall_colour, top)
+
+                if cell.walls['bottom'] == True:
+                    bottom = pg.Rect(x_pos - wall_thickness, y_pos + cell_size - wall_thickness, cell_size + 2 * wall_thickness, wall_thickness)
+                    pg.draw.rect(screen, wall_colour, bottom)
+
+                if cell.walls['left'] == True:
+                    left = pg.Rect(x_pos, y_pos - wall_thickness, wall_thickness, cell_size + 2 * wall_thickness)
+                    pg.draw.rect(screen, wall_colour, left)
+
+                if cell.walls['right'] == True:
+                    right = pg.Rect(x_pos + cell_size - wall_thickness, y_pos - wall_thickness, wall_thickness, cell_size + 2 * wall_thickness)
+                    pg.draw.rect(screen, wall_colour, right)
+
+
+    
+
+
+
+        
+
     
 
 
