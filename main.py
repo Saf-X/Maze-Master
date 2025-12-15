@@ -39,15 +39,19 @@ class Game:
         self.mouse_pos = pg.mouse.get_pos()
         self.mouse_x = self.mouse_pos[0]
         self.mouse_y = self.mouse_pos[1]
+        self.key_pressed = None # Current key pressed in a frame
 
     def run(self):
         while self.is_running:
             # Event handler
+            self.key_pressed = None
             for event in pg.event.get():
                 if event.type == pg.QUIT: # Close window
                     self.is_running = False
                 if event.type == pg.MOUSEBUTTONDOWN and event.button == 1: # Mouse left-click
                     self.state.buttons_clicked()
+                if event.type == pg.KEYDOWN: # Updates current key pressed
+                    self.key_pressed = event.key
             
             # Update mouse coords
             self.mouse_pos = pg.mouse.get_pos()
@@ -56,6 +60,7 @@ class Game:
 
             self.state.draw()
 
+            self.state.update(self)
             pg.display.update()
             self.clock.tick(FPS)
         pg.quit()
@@ -74,6 +79,9 @@ class TitleScreen:
         self.game.screen.blit(self.image,(0,0))
         for button in self.buttons:
             button.draw()
+
+    def update(self, game):
+        self.game = game
 
     def buttons_clicked(self):
         for button in self.buttons:
@@ -101,6 +109,9 @@ class PlayMode:
         for button in self.buttons:
             button.draw()
 
+    def update(self, game):
+        self.game = game
+
     def buttons_clicked(self):
         for button in self.buttons:
             button.clicked()
@@ -124,13 +135,24 @@ class EndlessGameMode:
         self.buttons = [
             Button(self.game, 56, 670, 'back_button.png', self.back_button_clicked)
         ]
-        self.maze = Maze(8, 8)
+        self.maze_width = 23
+        self.maze_height = 10
+        self.maze_surface_pos = (353, 101)
+        self.maze_surface_width = 575
+        self.maze_surface_height = 575
+        self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
+        self.player = Player(self.game, self.maze)
 
     def draw(self):
         self.game.screen.blit(self.image,(0,0))
         for button in self.buttons:
             button.draw()
-        self.maze.draw(self.game.screen, (353, 101), 575, 575)
+        self.maze.draw(self.game.screen)
+        self.player.draw()
+
+    def update(self, game):
+        self.game = game
+        self.player.update(self.game, self.maze)
 
     def buttons_clicked(self):
         for button in self.buttons:
@@ -170,11 +192,16 @@ class Node:
         self.heuristic = 0
 
 class Maze:
-    def __init__(self, width, height):
+    def __init__(self, width, height, surface_pos, surface_width, surface_height):
         self.width = width
         self.height = height
         self.stack = []
         self.array = self.create_2D_array(width, height)
+        # Determining the appropriate cell size from the ratio of space given to maze size
+        self.cell_size = min(surface_width // self.width, surface_height // self.height) # Take the smallest value as the node is a square
+        # Determine the coords of where to start drawing from to ensure the maze is aligned at the centre
+        self.start_x = surface_pos[0] + (surface_width - self.cell_size * self.width) // 2
+        self.start_y = surface_pos[1] + (surface_height - self.cell_size * self.height) // 2
         self.generate()
 
     def create_2D_array(self, width, height):
@@ -237,66 +264,211 @@ class Maze:
             else:
                 self.stack.pop()
 
-    def draw(self, screen, surface_pos, surface_width, surface_height, wall_colour=(255,255,255)):
-        # Determining the appropriate cell size from the ratio of space given to maze size
-        cell_size = min(surface_width // self.width, surface_height // self.height) # Take the smallest value as the node is a square
-        surface_x = surface_pos[0]
-        surface_y = surface_pos[1]
-        # Determine the coords of where to start drawing from to ensure the maze is aligned at the centre
-        start_x = surface_x + (surface_width - cell_size * self.width) // 2
-        start_y = surface_y + (surface_height - cell_size * self.height) // 2
-        wall_thickness = cell_size // 8 # Cell size : Wall thickenss ratio
+    def draw(self, screen, wall_colour=(255,255,255)):
+        wall_thickness = max(self.cell_size // 12, 1) # Cell size : Wall thickenss ratio - minimum 1px
         # Draw border
         top_border = pg.Rect(
-            start_x - wall_thickness,
-            start_y - wall_thickness,
-            cell_size * self.width + 2 * wall_thickness,
+            self.start_x - wall_thickness,
+            self.start_y - wall_thickness,
+            self.cell_size * self.width + 2 * wall_thickness,
             wall_thickness
         )
         pg.draw.rect(screen, wall_colour, top_border)
         bottom_border = pg.Rect(
-            start_x - wall_thickness,
-            start_y + cell_size * self.height,
-            cell_size * self.width + 2 * wall_thickness,
+            self.start_x - wall_thickness,
+            self.start_y + self.cell_size * self.height,
+            self.cell_size * self.width + 2 * wall_thickness,
             wall_thickness
         )
         pg.draw.rect(screen, wall_colour, bottom_border)
         left_border = pg.Rect(
-            start_x - wall_thickness,
-            start_y - wall_thickness,
+            self.start_x - wall_thickness,
+            self.start_y - wall_thickness,
             wall_thickness,
-            cell_size * self.height + 2 * wall_thickness
+            self.cell_size * self.height + 2 * wall_thickness
         )
         pg.draw.rect(screen, wall_colour, left_border)
         right_border = pg.Rect(
-            start_x + cell_size * self.width,
-            start_y - wall_thickness,
+            self.start_x + self.cell_size * self.width,
+            self.start_y - wall_thickness,
             wall_thickness,
-            cell_size * self.height + 2 * wall_thickness
+            self.cell_size * self.height + 2 * wall_thickness
         )
         pg.draw.rect(screen, wall_colour, right_border)
         # Draw cells
         for x in range(self.width):
             for y in range(self.height):
                 cell = self.array[x][y]
-                x_pos = start_x + x * cell_size
-                y_pos = start_y + y * cell_size
+                x_pos = self.start_x + x * self.cell_size
+                y_pos = self.start_y + y * self.cell_size
 
                 if cell.walls['top'] == True:
-                    top = pg.Rect(x_pos - wall_thickness, y_pos, cell_size + 2 * wall_thickness, wall_thickness)
+                    top = pg.Rect(x_pos - wall_thickness, y_pos, self.cell_size + 2 * wall_thickness, wall_thickness)
                     pg.draw.rect(screen, wall_colour, top)
 
                 if cell.walls['bottom'] == True:
-                    bottom = pg.Rect(x_pos - wall_thickness, y_pos + cell_size - wall_thickness, cell_size + 2 * wall_thickness, wall_thickness)
+                    bottom = pg.Rect(x_pos - wall_thickness, y_pos + self.cell_size - wall_thickness, self.cell_size + 2 * wall_thickness, wall_thickness)
                     pg.draw.rect(screen, wall_colour, bottom)
 
                 if cell.walls['left'] == True:
-                    left = pg.Rect(x_pos, y_pos - wall_thickness, wall_thickness, cell_size + 2 * wall_thickness)
+                    left = pg.Rect(x_pos, y_pos - wall_thickness, wall_thickness, self.cell_size + 2 * wall_thickness)
                     pg.draw.rect(screen, wall_colour, left)
 
                 if cell.walls['right'] == True:
-                    right = pg.Rect(x_pos + cell_size - wall_thickness, y_pos - wall_thickness, wall_thickness, cell_size + 2 * wall_thickness)
+                    right = pg.Rect(x_pos + self.cell_size - wall_thickness, y_pos - wall_thickness, wall_thickness, self.cell_size + 2 * wall_thickness)
                     pg.draw.rect(screen, wall_colour, right)
+
+    def pos_to_px(self, pos):
+        return [self.start_x + (pos[0] + 0.5) * self.cell_size, self.start_y + (pos[1] + 0.5) * self.cell_size]
+
+    def px_to_pos(self, px):
+        return [(px[0] - self.start_x) / self.cell_size - 0.5, (px[1] - self.start_y) / self.cell_size - 0.5]
+    
+    def target_node(self, pos, direction):
+        x = pos[0]
+        y = pos[1]
+        match direction:
+            case 'north':
+                while not self.array[x][y].walls['top']:
+                    y -= 1
+                    if not self.array[x][y].walls['left'] or not self.array[x][y].walls['right']:
+                        return (x, y) # When a junction is reached
+                
+            case 'east':
+                while not self.array[x][y].walls['right']:
+                    x += 1
+                    if not self.array[x][y].walls['top'] or not self.array[x][y].walls['bottom']:
+                        return (x, y) # When a junction is reached
+                    
+            case 'south':
+                while not self.array[x][y].walls['bottom']:
+                    y += 1
+                    if not self.array[x][y].walls['left'] or not self.array[x][y].walls['right']:
+                        return (x, y) # When a junction is reached
+                    
+            case 'west':
+                while not self.array[x][y].walls['left']:
+                    x -= 1
+                    if not self.array[x][y].walls['top'] or not self.array[x][y].walls['bottom']:
+                        return (x, y) # When a junction is reached
+        return (x, y) # When a dead end is reached
+
+    
+class Player:
+    def __init__(self, game, maze):
+        self.game = game # Reference to the Game object
+        self.maze = maze # Reference to the maze object
+        self.x = 0 # Position in the maze array
+        self.y = 0 # Position in the maze array
+        self.px = self.maze.pos_to_px((self.x, self.y)) # Converts player position to pixel coords
+        self.direction = None
+        self.queued_direction = None
+        self.is_moving = False
+        self.target_node_pos = None
+        self.target_node_px = None
+        self.speed = 5
+        self.colour = (7, 168, 18) # Green
+
+    def update(self, game, maze): # Updates attributes every frame
+        self.game = game
+        self.maze = maze
+        self.handle_input()
+        self.move()
+
+    def handle_input(self):
+        if not self.is_moving: # Resets queued direction to none when stationary
+            self.queued_direction = None
+
+        if self.game.key_pressed == pg.K_UP: # Up key clicked
+            if not self.maze.array[int(self.x)][int(self.y)].walls['top'] and not self.is_moving:
+                self.direction = 'north'
+                self.is_moving = True
+                self.target_node_pos = self.maze.target_node((self.x, self.y), self.direction)
+                self.target_node_px = self.maze.pos_to_px(self.target_node_pos)
+            elif self.is_moving:
+                self.queued_direction = 'north'
+        elif self.game.key_pressed == pg.K_DOWN: # Down key clicked
+            if not self.maze.array[int(self.x)][int(self.y)].walls['bottom'] and not self.is_moving:
+                self.direction = 'south'
+                self.is_moving = True
+                self.target_node_pos = self.maze.target_node((self.x, self.y), self.direction)
+                self.target_node_px = self.maze.pos_to_px(self.target_node_pos)
+            elif self.is_moving:
+                self.queued_direction = 'south'
+        elif self.game.key_pressed == pg.K_LEFT: # Left key clicked
+            if not self.maze.array[int(self.x)][int(self.y)].walls['left'] and not self.is_moving:
+                self.direction = 'west'
+                self.is_moving = True
+                self.target_node_pos = self.maze.target_node((self.x, self.y), self.direction)
+                self.target_node_px = self.maze.pos_to_px(self.target_node_pos)
+            elif self.is_moving:
+                self.queued_direction = 'west'
+        elif self.game.key_pressed == pg.K_RIGHT: # Right key clicked
+            if not self.maze.array[int(self.x)][int(self.y)].walls['right'] and not self.is_moving:
+                self.direction = 'east'
+                self.is_moving = True
+                self.target_node_pos = self.maze.target_node((self.x, self.y), self.direction)
+                self.target_node_px = self.maze.pos_to_px(self.target_node_pos)
+            elif self.is_moving:
+                self.queued_direction = 'east'
+
+    def move(self):
+        if self.is_moving:
+            if self.direction == 'north':
+                if self.px[1] > self.target_node_px[1]:
+                    self.px[1] -= self.speed # Move up
+                else:
+                    self.px[0] = self.target_node_px[0]
+                    self.px[1] = self.target_node_px[1]
+                    self.x = self.target_node_pos[0]
+                    self.y = self.target_node_pos[1]
+                    self.is_moving = False
+
+            elif self.direction == 'east':
+                if self.px[0] < self.target_node_px[0]:
+                    self.px[0] += self.speed # Move right
+                else:
+                    self.px[0] = self.target_node_px[0]
+                    self.px[1] = self.target_node_px[1]
+                    self.x = self.target_node_pos[0]
+                    self.y = self.target_node_pos[1]
+                    self.is_moving = False
+
+            elif self.direction == 'south':
+                if self.px[1] < self.target_node_px[1]:
+                    self.px[1] += self.speed # Move down
+                else:
+                    self.px[0] = self.target_node_px[0]
+                    self.px[1] = self.target_node_px[1]
+                    self.x = self.target_node_pos[0]
+                    self.y = self.target_node_pos[1]
+                    self.is_moving = False
+
+            elif self.direction == 'west':
+                if self.px[0] > self.target_node_px[0]:
+                    self.px[0] -= self.speed # Move left
+                else:
+                    self.px[0] = self.target_node_px[0]
+                    self.px[1] = self.target_node_px[1]
+                    self.x = self.target_node_pos[0]
+                    self.y = self.target_node_pos[1]
+                    self.is_moving = False
+
+        if self.queued_direction and not self.is_moving: # Checks for any queued direction
+            self.direction = self.queued_direction
+            self.queued_direction = None
+            self.is_moving = True
+            self.target_node_pos = self.maze.target_node((self.x, self.y), self.direction)
+            self.target_node_px = self.maze.pos_to_px(self.target_node_pos)
+                
+    def draw(self): # Draws player as a circle
+        pg.draw.circle(self.game.screen, self.colour, (int(self.px[0]), int(self.px[1])), self.maze.cell_size // 2.5)
+
+
+            
+
+
+        
 
 
     
