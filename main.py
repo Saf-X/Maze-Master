@@ -10,6 +10,7 @@ pg.init()
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
 FPS = 60
+GREEN = (7, 168, 18)
 
 # File directories
 MAIN_DIR = os.path.dirname(__file__)
@@ -135,7 +136,7 @@ class EndlessGameMode:
         self.buttons = [
             Button(self.game, 56, 670, 'back_button.png', self.back_button_clicked)
         ]
-        self.maze_width = 23
+        self.maze_width = 10
         self.maze_height = 10
         self.maze_surface_pos = (353, 101)
         self.maze_surface_width = 575
@@ -367,7 +368,9 @@ class Player:
         self.target_node_pos = None
         self.target_node_px = None
         self.speed = 5
-        self.colour = (7, 168, 18) # Green
+        self.colour = GREEN
+        self.trail = [(self.x, self.y)] # Trail path nodes
+        self.toggle_trail = True
 
     def update(self, game, maze): # Updates attributes every frame
         self.game = game
@@ -423,6 +426,13 @@ class Player:
                     self.x = self.target_node_pos[0]
                     self.y = self.target_node_pos[1]
                     self.is_moving = False
+                    if (self.x, self.y) != self.trail[-1]: # If new node visited
+                        if len(self.trail) >= 2 and (self.x, self.y) == self.trail[-2]:
+                            self.trail.pop() # Remove last item if player is backtracking
+                        else:
+                            self.trail.append((self.x, self.y)) # Add item if new node visiited
+
+                
 
             elif self.direction == 'east':
                 if self.px[0] < self.target_node_px[0]:
@@ -433,6 +443,11 @@ class Player:
                     self.x = self.target_node_pos[0]
                     self.y = self.target_node_pos[1]
                     self.is_moving = False
+                    if (self.x, self.y) != self.trail[-1]:
+                        if len(self.trail) >= 2 and (self.x, self.y) == self.trail[-2]:
+                            self.trail.pop()
+                        else:
+                            self.trail.append((self.x, self.y))
 
             elif self.direction == 'south':
                 if self.px[1] < self.target_node_px[1]:
@@ -443,6 +458,11 @@ class Player:
                     self.x = self.target_node_pos[0]
                     self.y = self.target_node_pos[1]
                     self.is_moving = False
+                    if (self.x, self.y) != self.trail[-1]:
+                        if len(self.trail) >= 2 and (self.x, self.y) == self.trail[-2]:
+                            self.trail.pop()
+                        else:
+                            self.trail.append((self.x, self.y))
 
             elif self.direction == 'west':
                 if self.px[0] > self.target_node_px[0]:
@@ -453,6 +473,11 @@ class Player:
                     self.x = self.target_node_pos[0]
                     self.y = self.target_node_pos[1]
                     self.is_moving = False
+                    if (self.x, self.y) != self.trail[-1]:
+                        if len(self.trail) >= 2 and (self.x, self.y) == self.trail[-2]:
+                            self.trail.pop()
+                        else:
+                            self.trail.append((self.x, self.y))
 
         if self.queued_direction and not self.is_moving: # Checks for any queued direction
             self.direction = self.queued_direction
