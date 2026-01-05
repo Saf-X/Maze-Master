@@ -369,6 +369,7 @@ class Player:
         self.target_node_px = None
         self.speed = 5
         self.colour = GREEN
+        self.trail_colour = GREEN
         self.trail = [(self.x, self.y)] # Trail path nodes
         self.toggle_trail = True
 
@@ -388,6 +389,7 @@ class Player:
                 self.is_moving = True
                 self.target_node_pos = self.maze.target_node((self.x, self.y), self.direction)
                 self.target_node_px = self.maze.pos_to_px(self.target_node_pos)
+                self.handle_backtracking()
             elif self.is_moving:
                 self.queued_direction = 'north'
         elif self.game.key_pressed == pg.K_DOWN: # Down key clicked
@@ -396,6 +398,7 @@ class Player:
                 self.is_moving = True
                 self.target_node_pos = self.maze.target_node((self.x, self.y), self.direction)
                 self.target_node_px = self.maze.pos_to_px(self.target_node_pos)
+                self.handle_backtracking()
             elif self.is_moving:
                 self.queued_direction = 'south'
         elif self.game.key_pressed == pg.K_LEFT: # Left key clicked
@@ -404,6 +407,7 @@ class Player:
                 self.is_moving = True
                 self.target_node_pos = self.maze.target_node((self.x, self.y), self.direction)
                 self.target_node_px = self.maze.pos_to_px(self.target_node_pos)
+                self.handle_backtracking()
             elif self.is_moving:
                 self.queued_direction = 'west'
         elif self.game.key_pressed == pg.K_RIGHT: # Right key clicked
@@ -412,6 +416,7 @@ class Player:
                 self.is_moving = True
                 self.target_node_pos = self.maze.target_node((self.x, self.y), self.direction)
                 self.target_node_px = self.maze.pos_to_px(self.target_node_pos)
+                self.handle_backtracking()
             elif self.is_moving:
                 self.queued_direction = 'east'
 
@@ -431,8 +436,6 @@ class Player:
                             self.trail.pop() # Remove last item if player is backtracking
                         else:
                             self.trail.append((self.x, self.y)) # Add item if new node visiited
-
-                
 
             elif self.direction == 'east':
                 if self.px[0] < self.target_node_px[0]:
@@ -485,9 +488,46 @@ class Player:
             self.is_moving = True
             self.target_node_pos = self.maze.target_node((self.x, self.y), self.direction)
             self.target_node_px = self.maze.pos_to_px(self.target_node_pos)
-                
+            self.handle_backtracking()
+
+    def draw_trail(self):
+        trail_thickness = max(self.maze.cell_size // 3, 1)
+        for i in range(len(self.trail) - 1): # Draws the static part of the trail
+            start_pos = self.trail[i]
+            end_pos = self.trail[i + 1]
+            start_px = self.maze.pos_to_px(start_pos)
+            end_px = self.maze.pos_to_px(end_pos)
+
+            static_rect = self.create_rect(start_px, end_px, trail_thickness)
+            pg.draw.rect(self.game.screen, self.trail_colour, static_rect)
+
+        last_px = self.maze.pos_to_px(self.trail[-1]) # Draws the dynamic part of the trail
+        dynamic_rect = self.create_rect(last_px, self.px, trail_thickness)
+        pg.draw.rect(self.game.screen, self.trail_colour, dynamic_rect)
+
+    def create_rect(self, start_px, end_px, thickness):
+        if start_px[0] == end_px[0]: # Draw a vertical rectangle
+            length = abs(start_px[1] - end_px[1]) + thickness
+            x = start_px[0] - thickness // 2
+            y = min(start_px[1], end_px[1]) - thickness // 2
+            return pg.Rect(x, y, thickness, length)
+
+
+        elif start_px[1] == end_px[1]: # Draw a horizontal rectangle
+            length = abs(start_px[0] - end_px[0]) + thickness
+            x = min(start_px[0], end_px[0]) - thickness // 2
+            y = start_px[1] - thickness // 2
+            return pg.Rect(x, y, length, thickness)
+
+    def handle_backtracking(self):
+        if len(self.trail) > 1 and self.target_node_pos == self.trail[-2]:
+            self.trail.pop()
+
     def draw(self): # Draws player as a circle
+        self.draw_trail()
         pg.draw.circle(self.game.screen, self.colour, (int(self.px[0]), int(self.px[1])), self.maze.cell_size // 2.5)
+
+        
 
 
             
