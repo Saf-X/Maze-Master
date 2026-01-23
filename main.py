@@ -11,6 +11,7 @@ SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
 FPS = 60
 GREEN = (7, 168, 18)
+LIGHT_ORANGE = (255, 204, 153)
 
 # File directories
 MAIN_DIR = os.path.dirname(__file__)
@@ -18,10 +19,34 @@ DATA_DIR = os.path.join(MAIN_DIR, 'data')
 ASSETS_DIR = os.path.join(MAIN_DIR, 'assets')
 IMAGES_DIR = os.path.join(ASSETS_DIR, 'images')
 SOUNDS_DIR = os.path.join(ASSETS_DIR, 'sounds')
+FONTS_DIR = os.path.join(ASSETS_DIR, 'fonts')
+
+# Fonts
+MONTSERRAT_REG = os.path.join(FONTS_DIR, 'Montserrat_Font_Family', 'Montserrat Regular 400.ttf')
+MONTSERRAT_BOLD = os.path.join(FONTS_DIR, 'Montserrat_Font_Family', 'Montserrat Bold 700.ttf')
+PARKVANE = os.path.join(FONTS_DIR, 'Parkvane_Font_Family', 'Parkvane Regular 400.ttf')
 
 # Global functions
 def load_image(filename):
     return pg.image.load(os.path.join(IMAGES_DIR, filename)).convert_alpha()
+
+def draw_text(screen, text, x, y, size = 32, colour = (255, 255, 255), font_type = MONTSERRAT_REG, align = 'topleft'):
+    font = pg.font.Font(font_type, size)
+    text_surface = font.render(text, True, colour)
+
+    rect = text_surface.get_rect()
+    if align == 'center':
+        rect.center = (x, y)
+    elif align == 'topright':
+        rect.topright = (x, y)
+    elif align == 'bottomleft':
+        rect.bottomleft = (x, y)
+    elif align == 'bottomright':
+        rect.bottomright = (x, y)
+    else:  # default is topleft
+        rect.topleft = (x, y)
+
+    screen.blit(text_surface, rect)
 
 # Classes
 class Game:
@@ -128,6 +153,7 @@ class PlayMode:
 
     def endless_button_clicked(self):
         self.game.state = self.game.endless_game_mode
+        self.game.endless_game_mode.start_time = pg.time.get_ticks()
 
 class EndlessGameMode:
     def __init__(self, game):
@@ -143,6 +169,10 @@ class EndlessGameMode:
         self.maze_surface_height = 575
         self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
         self.player = Player(self.game, self.maze)
+        self.start_time = pg.time.get_ticks()
+        self.elapsed_time = 0
+        self.minutes = 0
+        self.seconds = 0
 
     def draw(self):
         self.game.screen.blit(self.image,(0,0))
@@ -150,10 +180,12 @@ class EndlessGameMode:
             button.draw()
         self.maze.draw(self.game.screen)
         self.player.draw()
+        self.draw_timer()
 
     def update(self, game):
         self.game = game
         self.player.update(self.game, self.maze)
+        self.update_timer()
 
     def buttons_clicked(self):
         for button in self.buttons:
@@ -161,6 +193,35 @@ class EndlessGameMode:
 
     def back_button_clicked(self):
         self.game.state = self.game.play_mode
+
+    def update_timer(self):
+        self.elapsed_time = (pg.time.get_ticks() - self.start_time) // 1000 # Elapsed time in seconds
+        self.minutes = self.elapsed_time // 60
+        self.seconds = self.elapsed_time % 60
+    
+    def draw_timer(self):
+        time = f'{self.minutes:02d}:{self.seconds:02d}'
+        draw_text(
+            self.game.screen,
+            'Timer:',
+            (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2,
+            130,
+            40,
+            LIGHT_ORANGE,
+            MONTSERRAT_BOLD,
+            'center'
+        )
+        draw_text(
+            self.game.screen,
+            time,
+            (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2,
+            200,
+            40,
+            LIGHT_ORANGE,
+            MONTSERRAT_REG,
+            'center'
+        )
+
 
 class Button:
     def __init__(self, game, x, y, image, action = None):
