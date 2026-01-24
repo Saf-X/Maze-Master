@@ -173,19 +173,26 @@ class EndlessGameMode:
         self.elapsed_time = 0
         self.minutes = 0
         self.seconds = 0
+        self.win = False
+        self.goal_node_pos = (self.maze_width - 1, self.maze_height - 1)
+        self.goal_node_image = pg.transform.smoothscale(load_image('goal_node.png'), (self.maze.cell_size, self.maze.cell_size))
+        self.goal_node_rect = self.goal_node_image.get_rect()
 
     def draw(self):
         self.game.screen.blit(self.image,(0,0))
         for button in self.buttons:
             button.draw()
         self.maze.draw(self.game.screen)
+        self.draw_goal_node()
         self.player.draw()
         self.draw_timer()
 
     def update(self, game):
         self.game = game
         self.player.update(self.game, self.maze)
-        self.update_timer()
+        if not self.win:
+            self.update_timer()
+        self.is_winning()
 
     def buttons_clicked(self):
         for button in self.buttons:
@@ -200,7 +207,7 @@ class EndlessGameMode:
         self.seconds = self.elapsed_time % 60
     
     def draw_timer(self):
-        time = f'{self.minutes:02d}:{self.seconds:02d}'
+        time = f'{self.minutes:02d}:{self.seconds:02d}' # Clock display MM:SS
         draw_text(
             self.game.screen,
             'Timer:',
@@ -222,6 +229,13 @@ class EndlessGameMode:
             'center'
         )
 
+    def is_winning(self):
+        if (self.player.x, self.player.y) == self.goal_node_pos:
+            self.win = True
+
+    def draw_goal_node(self):
+        self.goal_node_rect.center = self.maze.pos_to_px(self.goal_node_pos)
+        self.game.screen.blit(self.goal_node_image, self.goal_node_rect)
 
 class Button:
     def __init__(self, game, x, y, image, action = None):
@@ -417,11 +431,11 @@ class Maze:
 
     
 class Player:
-    def __init__(self, game, maze):
+    def __init__(self, game, maze, x = 0, y = 0):
         self.game = game # Reference to the Game object
         self.maze = maze # Reference to the maze object
-        self.x = 0 # Position in the maze array
-        self.y = 0 # Position in the maze array
+        self.x = x # Position in the maze array
+        self.y = y # Position in the maze array
         self.px = self.maze.pos_to_px((self.x, self.y)) # Converts player position to pixel coords
         self.direction = None
         self.queued_direction = None
