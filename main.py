@@ -12,6 +12,7 @@ SCREEN_HEIGHT = 720
 FPS = 60
 GREEN = (7, 168, 18)
 LIGHT_ORANGE = (255, 204, 153)
+CYAN = (102, 255, 255)
 
 # File directories
 MAIN_DIR = os.path.dirname(__file__)
@@ -30,8 +31,7 @@ PARKVANE = os.path.join(FONTS_DIR, 'Parkvane_Font_Family', 'Parkvane Regular 400
 def load_image(filename):
     return pg.image.load(os.path.join(IMAGES_DIR, filename)).convert_alpha()
 
-def draw_text(screen, text, x, y, size = 32, colour = (255, 255, 255), font_type = MONTSERRAT_REG, align = 'topleft'):
-    font = pg.font.Font(font_type, size)
+def draw_text(screen, text, x, y, font, colour = (255, 255, 255), align = 'topleft'):
     text_surface = font.render(text, True, colour)
 
     rect = text_surface.get_rect()
@@ -162,13 +162,14 @@ class EndlessGameMode:
         self.buttons = [
             Button(self.game, 56, 670, 'back_button.png', self.back_button_clicked)
         ]
+        self.start_node_pos = (0, 0)
         self.maze_width = 10
         self.maze_height = 10
         self.maze_surface_pos = (353, 101)
         self.maze_surface_width = 575
         self.maze_surface_height = 575
         self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
-        self.player = Player(self.game, self.maze)
+        self.player = Player(self.game, self.maze, self.start_node_pos[0], self.start_node_pos[1])
         self.start_time = pg.time.get_ticks()
         self.elapsed_time = 0
         self.minutes = 0
@@ -177,6 +178,14 @@ class EndlessGameMode:
         self.goal_node_pos = (self.maze_width - 1, self.maze_height - 1)
         self.goal_node_image = pg.transform.smoothscale(load_image('goal_node.png'), (self.maze.cell_size, self.maze.cell_size))
         self.goal_node_rect = self.goal_node_image.get_rect()
+        self.timer_label_font = pg.font.Font(MONTSERRAT_BOLD, 40)
+        self.timer_text_font = pg.font.Font(MONTSERRAT_REG, 40)
+        self.moves_counter_label_font = pg.font.Font(MONTSERRAT_BOLD, 40)
+        self.moves_counter_text_font = pg.font.Font(MONTSERRAT_REG, 40)
+        self.path = self.maze.run_dijkstra(self.start_node_pos, self.goal_node_pos)
+        
+        for node in self.path:
+            print(f'({node.x}, {node.y})')
 
     def draw(self):
         self.game.screen.blit(self.image,(0,0))
@@ -186,6 +195,7 @@ class EndlessGameMode:
         self.draw_goal_node()
         self.player.draw()
         self.draw_timer()
+        self.draw_moves_counter()
 
     def update(self, game):
         self.game = game
@@ -213,9 +223,8 @@ class EndlessGameMode:
             'Timer:',
             (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2,
             130,
-            40,
+            self.timer_label_font,
             LIGHT_ORANGE,
-            MONTSERRAT_BOLD,
             'center'
         )
         draw_text(
@@ -223,9 +232,29 @@ class EndlessGameMode:
             time,
             (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2,
             200,
-            40,
+            self.timer_text_font,
             LIGHT_ORANGE,
-            MONTSERRAT_REG,
+            'center'
+        )
+
+    def draw_moves_counter(self):
+        moves = str(self.player.moves) # Obtain the no. moves made from Player class
+        draw_text(
+            self.game.screen,
+            'Moves:',
+            (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2,
+            340,
+            self.moves_counter_label_font,
+            CYAN,
+            'center'
+        )
+        draw_text(
+            self.game.screen,
+            moves,
+            (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2,
+            410,
+            self.moves_counter_text_font,
+            CYAN,
             'center'
         )
 
@@ -261,7 +290,8 @@ class Node:
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        self.is_visited = False
+        self.is_visited = False # Visited flag for maze generation
+        self.is_path_visited = False # Visited flag for pathfinding
         self.walls = {'top':True, 'bottom':True, 'left':True, 'right':True}
         self.distance = float('inf') # Set to infinity
         self.previous_node = None
@@ -288,7 +318,7 @@ class Maze:
                 array[x].append(Node(x, y))
         return array
     
-    def get_neighbours(self, node):
+    def get_unvisited_neighbours(self, node): # Returns a list of univisited neighbouring nodes for maze generation
         neighbours = []
 
         if node.y > 0: # Top
@@ -330,7 +360,7 @@ class Maze:
 
         while len(self.stack) > 0:
             current_node = self.stack[-1]
-            neighbouring_nodes = self.get_neighbours(current_node)
+            neighbouring_nodes = self.get_unvisited_neighbours(current_node)
 
             if len(neighbouring_nodes) > 0:
                 next_node = random.choice(neighbouring_nodes)
@@ -428,6 +458,25 @@ class Maze:
                     if not self.array[x][y].walls['top'] or not self.array[x][y].walls['bottom']:
                         return (x, y) # When a junction is reached
         return (x, y) # When a dead end is reached
+    
+    def get_reachable_neighbours(self, node): # Returns a list of adjacent nodes with no wall in between
+        neighbours = []
+
+        if not node.walls['top']:
+            neighbours.append(self.array[node.x][node.y - 1])
+        if not node.walls['bottom']:
+            neighbours.append(self.array[node.x][node.y + 1])
+        if not node.walls['left']:
+            neighbours.append(self.array[node.x - 1][node.y])
+        if not node.walls['right']:
+            neighbours.append(self.array[node.x + 1][node.y])
+        return neighbours
+    
+    def run_dijkstra(self, start_node_pos, goal_node_pos):
+        start_node = self.array[start_node_pos[0]][start_node_pos[1]]
+        goal_node = self.array[goal_node_pos[0]][goal_node_pos[1]]
+        return Dijkstra(self).run(start_node, goal_node)
+
 
     
 class Player:
@@ -447,6 +496,7 @@ class Player:
         self.trail_colour = GREEN
         self.trail = [(self.x, self.y)] # Trail path nodes
         self.toggle_trail = True
+        self.moves = 0 
 
     def update(self, game, maze): # Updates attributes every frame
         self.game = game
@@ -506,6 +556,7 @@ class Player:
                     self.x = self.target_node_pos[0]
                     self.y = self.target_node_pos[1]
                     self.is_moving = False
+                    self.moves += 1
                     if (self.x, self.y) != self.trail[-1]: # If new node visited
                         if len(self.trail) >= 2 and (self.x, self.y) == self.trail[-2]:
                             self.trail.pop() # Remove last item if player is backtracking
@@ -521,6 +572,7 @@ class Player:
                     self.x = self.target_node_pos[0]
                     self.y = self.target_node_pos[1]
                     self.is_moving = False
+                    self.moves += 1
                     if (self.x, self.y) != self.trail[-1]:
                         if len(self.trail) >= 2 and (self.x, self.y) == self.trail[-2]:
                             self.trail.pop()
@@ -536,6 +588,7 @@ class Player:
                     self.x = self.target_node_pos[0]
                     self.y = self.target_node_pos[1]
                     self.is_moving = False
+                    self.moves += 1
                     if (self.x, self.y) != self.trail[-1]:
                         if len(self.trail) >= 2 and (self.x, self.y) == self.trail[-2]:
                             self.trail.pop()
@@ -551,6 +604,7 @@ class Player:
                     self.x = self.target_node_pos[0]
                     self.y = self.target_node_pos[1]
                     self.is_moving = False
+                    self.moves += 1
                     if (self.x, self.y) != self.trail[-1]:
                         if len(self.trail) >= 2 and (self.x, self.y) == self.trail[-2]:
                             self.trail.pop()
@@ -602,7 +656,57 @@ class Player:
         self.draw_trail()
         pg.draw.circle(self.game.screen, self.colour, (int(self.px[0]), int(self.px[1])), self.maze.cell_size // 2.5)
 
-        
+class Dijkstra:
+    def __init__(self, maze):
+        self.maze = maze
+
+    def reset_nodes(self): # Resets all nodes' pathfinding attributes
+        for column in self.maze.array:
+            for node in column:
+                node.is_path_visited = False
+                node.distance = float('inf') # Set to infinity
+                node.previous_node = None
+                node.heuristic = 0
+
+    def retrace(self, goal_node): # Outputs the path of nodes from goal node to start node
+        current_node = goal_node
+        path = [goal_node]
+        while current_node.previous_node:
+            current_node = current_node.previous_node
+            path.append(current_node)
+        return path
+
+    def run(self, start_node, goal_node):
+        self.reset_nodes()
+        start_node.distance = 0
+        open_set = []
+        open_set.append(start_node)
+
+        while open_set:
+            closest_node = open_set[0]
+            index = 0
+            for i in range(len(open_set)): # Finds the closest node in the open set
+                if open_set[i].distance < closest_node.distance:
+                    closest_node = open_set[i]
+                    index = i
+            
+            current_node = open_set.pop(index)
+            current_node.is_path_visited = True
+
+            if current_node == goal_node:
+                return self.retrace(goal_node)
+            
+            neighbouring_nodes = self.maze.get_reachable_neighbours(current_node)
+            for i in range(len(neighbouring_nodes)): # Find an unvisited neighbouring node
+                if not neighbouring_nodes[i].is_path_visited:
+                    new_distance = current_node.distance + 1 # Distance from start increases by 1 each square
+                    if new_distance < neighbouring_nodes[i].distance: # Updates the nodes' distance from start
+                        neighbouring_nodes[i].distance = new_distance
+                        neighbouring_nodes[i].previous_node = current_node
+                        open_set.append(neighbouring_nodes[i])
+            
+
+
 
 
             
