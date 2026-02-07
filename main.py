@@ -163,17 +163,17 @@ class EndlessGameMode:
             Button(self.game, 56, 670, 'back_button.png', self.back_button_clicked)
         ]
         self.start_node_pos = (0, 0)
-        self.maze_width = 10
-        self.maze_height = 10
+        self.maze_width = 25
+        self.maze_height = 25
         self.maze_surface_pos = (353, 101)
         self.maze_surface_width = 575
         self.maze_surface_height = 575
         self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
         self.player = Player(self.game, self.maze, self.start_node_pos[0], self.start_node_pos[1])
         self.start_time = pg.time.get_ticks()
-        self.elapsed_time = 0
-        self.minutes = 0
-        self.seconds = 0
+        self.elapsed_time = 0 # Seconds since level started
+        self.minutes = 0 # Clock display
+        self.seconds = 0 # Clock display
         self.win = False
         self.goal_node_pos = (self.maze_width - 1, self.maze_height - 1)
         self.goal_node_image = pg.transform.smoothscale(load_image('goal_node.png'), (self.maze.cell_size, self.maze.cell_size))
@@ -183,9 +183,12 @@ class EndlessGameMode:
         self.moves_counter_label_font = pg.font.Font(MONTSERRAT_BOLD, 40)
         self.moves_counter_text_font = pg.font.Font(MONTSERRAT_REG, 40)
         self.path = self.maze.run_dijkstra(self.start_node_pos, self.goal_node_pos)
-        
-        for node in self.path:
-            print(f'({node.x}, {node.y})')
+        self.zero_star = load_image('0 star.png')
+        self.one_star = load_image('1 star.png')
+        self.two_star = load_image('2 star.png')
+        self.three_star = load_image('3 star.png')
+        self.star_rating = 3
+        self.speed_constant = 6.02 # Solving speed to acheive 3/3 stars
 
     def draw(self):
         self.game.screen.blit(self.image,(0,0))
@@ -200,6 +203,7 @@ class EndlessGameMode:
     def update(self, game):
         self.game = game
         self.player.update(self.game, self.maze)
+        self.update_star_rating()
         if not self.win:
             self.update_timer()
         self.is_winning()
@@ -265,6 +269,15 @@ class EndlessGameMode:
     def draw_goal_node(self):
         self.goal_node_rect.center = self.maze.pos_to_px(self.goal_node_pos)
         self.game.screen.blit(self.goal_node_image, self.goal_node_rect)
+
+    def update_star_rating(self):
+        three_star_time = len(self.path) / self.speed_constant # Max time to achieve 3/3 stars
+        if self.elapsed_time <= three_star_time:
+            self.star_rating = 3
+        elif self.elapsed_time <= three_star_time + 5:
+            self.star_rating = 2
+        else:
+            self.star_rating = 1
 
 class Button:
     def __init__(self, game, x, y, image, action = None):
