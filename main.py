@@ -183,10 +183,14 @@ class EndlessGameMode:
         self.moves_counter_label_font = pg.font.Font(MONTSERRAT_BOLD, 40)
         self.moves_counter_text_font = pg.font.Font(MONTSERRAT_REG, 40)
         self.path = self.maze.run_dijkstra(self.start_node_pos, self.goal_node_pos)
-        self.zero_star = load_image('0 star.png')
-        self.one_star = load_image('1 star.png')
-        self.two_star = load_image('2 star.png')
-        self.three_star = load_image('3 star.png')
+        self.zero_star_image = pg.transform.smoothscale(load_image('0 star.png'), (153, 51))
+        self.zero_star_rect = self.zero_star_image.get_rect()
+        self.one_star_image = pg.transform.smoothscale(load_image('1 star.png'), (153, 51))
+        self.one_star_rect = self.zero_star_image.get_rect()
+        self.two_star_image = pg.transform.smoothscale(load_image('2 star.png'), (153, 51))
+        self.two_star_rect = self.zero_star_image.get_rect()
+        self.three_star_image = pg.transform.smoothscale(load_image('3 star.png'), (153, 51))
+        self.three_star_rect = self.zero_star_image.get_rect()
         self.star_rating = 3
         self.speed_constant = 6.02 # Solving speed to acheive 3/3 stars
 
@@ -199,6 +203,7 @@ class EndlessGameMode:
         self.player.draw()
         self.draw_timer()
         self.draw_moves_counter()
+        self.draw_star_rating()
 
     def update(self, game):
         self.game = game
@@ -278,6 +283,18 @@ class EndlessGameMode:
             self.star_rating = 2
         else:
             self.star_rating = 1
+    
+    def draw_star_rating(self):
+        match self.star_rating:
+            case 3:
+                self.three_star_rect.topleft = (775, 45)
+                self.game.screen.blit(self.three_star_image, self.three_star_rect)
+            case 2:
+                self.two_star_rect.topleft = (775, 45)
+                self.game.screen.blit(self.two_star_image, self.two_star_rect)
+            case 1:
+                self.one_star_rect.topleft = (775, 45)
+                self.game.screen.blit(self.one_star_image, self.one_star_rect)
 
 class Button:
     def __init__(self, game, x, y, image, action = None):
