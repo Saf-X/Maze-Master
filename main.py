@@ -186,11 +186,11 @@ class EndlessGameMode:
         self.zero_star_image = pg.transform.smoothscale(load_image('0 star.png'), (153, 51))
         self.zero_star_rect = self.zero_star_image.get_rect()
         self.one_star_image = pg.transform.smoothscale(load_image('1 star.png'), (153, 51))
-        self.one_star_rect = self.zero_star_image.get_rect()
+        self.one_star_rect = self.one_star_image.get_rect()
         self.two_star_image = pg.transform.smoothscale(load_image('2 star.png'), (153, 51))
-        self.two_star_rect = self.zero_star_image.get_rect()
+        self.two_star_rect = self.two_star_image.get_rect()
         self.three_star_image = pg.transform.smoothscale(load_image('3 star.png'), (153, 51))
-        self.three_star_rect = self.zero_star_image.get_rect()
+        self.three_star_rect = self.three_star_image.get_rect()
         self.star_rating = 3
         self.speed_constant = 6.02 # Solving speed to acheive 3/3 stars
 
