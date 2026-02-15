@@ -13,6 +13,7 @@ FPS = 60
 GREEN = (7, 168, 18)
 LIGHT_ORANGE = (255, 204, 153)
 CYAN = (102, 255, 255)
+PINK = (255, 0, 255)
 
 # File directories
 MAIN_DIR = os.path.dirname(__file__)
@@ -61,6 +62,8 @@ class Game:
         self.title_screen = TitleScreen(self)
         self.play_mode = PlayMode(self)
         self.endless_game_mode = EndlessGameMode(self)
+        self.pause_menu = PauseMenu(self)
+        self.is_paused = False
         self.state = self.title_screen
         self.mouse_pos = pg.mouse.get_pos()
         self.mouse_x = self.mouse_pos[0]
@@ -75,7 +78,10 @@ class Game:
                 if event.type == pg.QUIT: # Close window
                     self.is_running = False
                 if event.type == pg.MOUSEBUTTONDOWN and event.button == 1: # Mouse left-click
-                    self.state.buttons_clicked()
+                    if self.is_paused:
+                        self.pause_menu.buttons_clicked()
+                    else:
+                        self.state.buttons_clicked()
                 if event.type == pg.KEYDOWN: # Updates current key pressed
                     self.key_pressed = event.key
             
@@ -85,8 +91,11 @@ class Game:
             self.mouse_y = self.mouse_pos[1]
 
             self.state.draw()
+            if self.is_paused:
+                self.pause_menu.draw()
+            else:
+                self.state.update(self)
 
-            self.state.update(self)
             pg.display.update()
             self.clock.tick(FPS)
         pg.quit()
@@ -124,14 +133,14 @@ class PlayMode:
         self.game = game
         self.image = load_image('play_mode.png')
         self.buttons = [
-            Button(self.game, 56, 670, 'back_button.png', self.back_button_clicked),
-            Button(self.game, 1230, 670, 'settings_button.png', self.settings_button_clicked),
+            Button(self.game, 56, 670, 'back_button.png', self.back_button_clicked, 81, 72),
+            Button(self.game, 1230, 670, 'settings_button.png', self.settings_button_clicked, 72, 72),
             Button(self.game, SCREEN_WIDTH//2, 426, 'levels_button.png', self.levels_button_clicked),
             Button(self.game, SCREEN_WIDTH//2, 564, 'endless_button.png', self.endless_button_clicked)
         ]
     
     def draw(self):
-        self.game.screen.blit(self.image,(0,0))
+        self.game.screen.blit(self.image, (0,0))
         for button in self.buttons:
             button.draw()
 
@@ -160,7 +169,7 @@ class EndlessGameMode:
         self.game = game
         self.image = load_image('blank.png')
         self.buttons = [
-            Button(self.game, 56, 670, 'back_button.png', self.back_button_clicked)
+            Button(self.game, 50, 50, 'pause_button.png', self.pause_button_clicked, 72, 72)
         ]
         self.start_node_pos = (0, 0)
         self.maze_width = 25
@@ -170,8 +179,10 @@ class EndlessGameMode:
         self.maze_surface_height = 575
         self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
         self.player = Player(self.game, self.maze, self.start_node_pos[0], self.start_node_pos[1])
-        self.start_time = pg.time.get_ticks()
+        self.start_time = pg.time.get_ticks() # Timer value when started
         self.elapsed_time = 0 # Seconds since level started
+        self.start_pause_time = 0 # Timer value when paused
+        self.elapsed_pause_time = 0 # Pause duration
         self.minutes = 0 # Clock display
         self.seconds = 0 # Clock display
         self.win = False
@@ -182,6 +193,7 @@ class EndlessGameMode:
         self.timer_text_font = pg.font.Font(MONTSERRAT_REG, 40)
         self.moves_counter_label_font = pg.font.Font(MONTSERRAT_BOLD, 40)
         self.moves_counter_text_font = pg.font.Font(MONTSERRAT_REG, 40)
+        self.title_text_font = pg.font.Font(PARKVANE, 50)
         self.path = self.maze.run_dijkstra(self.start_node_pos, self.goal_node_pos)
         self.zero_star_image = pg.transform.smoothscale(load_image('0 star.png'), (153, 51))
         self.zero_star_rect = self.zero_star_image.get_rect()
@@ -201,6 +213,7 @@ class EndlessGameMode:
         self.maze.draw(self.game.screen)
         self.draw_goal_node()
         self.player.draw()
+        self.draw_title()
         self.draw_timer()
         self.draw_moves_counter()
         self.draw_star_rating()
@@ -217,8 +230,20 @@ class EndlessGameMode:
         for button in self.buttons:
             button.clicked()
 
-    def back_button_clicked(self):
-        self.game.state = self.game.play_mode
+    def pause_button_clicked(self):
+        self.game.is_paused = True
+        self.start_pause_time = pg.time.get_ticks()
+
+    def draw_title(self):
+        draw_text(
+            self.game.screen,
+            'Endless',
+            self.maze_surface_pos[0],
+            45,
+            self.title_text_font,
+            PINK,
+            'topleft'
+        )
 
     def update_timer(self):
         self.elapsed_time = (pg.time.get_ticks() - self.start_time) // 1000 # Elapsed time in seconds
@@ -297,11 +322,14 @@ class EndlessGameMode:
                 self.game.screen.blit(self.one_star_image, self.one_star_rect)
 
 class Button:
-    def __init__(self, game, x, y, image, action = None):
+    def __init__(self, game, x, y, image, action = None, width = None, height = None):
         self.game = game
         self.x = x
         self.y = y
-        self.image = load_image(image)
+        if width and height:
+            self.image = pg.transform.smoothscale(load_image(image), (width, height))
+        else:
+            self.image = load_image(image)
         self.mask = pg.mask.from_surface(self.image) # Creates mask of button
         self.rect = self.image.get_rect(center = (x, y))
         self.action = action
@@ -685,6 +713,41 @@ class Player:
     def draw(self): # Draws player as a circle
         self.draw_trail()
         pg.draw.circle(self.game.screen, self.colour, (int(self.px[0]), int(self.px[1])), self.maze.cell_size // 2.5)
+
+class PauseMenu:
+    def __init__(self, game):
+        self.game = game
+        self.image = pg.transform.smoothscale(load_image('paused.png'), (419, 161))
+        self.buttons = [
+            Button(self.game, SCREEN_WIDTH//2, 421, 'play_button2.png', self.play_button_clicked, 206, 206),
+            Button(self.game, 452, 421, 'home_button.png', self.home_button_clicked, 139, 139),
+            Button(self.game, 828, 421, 'controls_button.png', self.controls_button_clicked, 139, 139),
+        ]
+    
+    def draw(self):
+        overlay = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pg.SRCALPHA) # Darkens screen
+        overlay.fill((0, 0, 0, 180))
+        
+        self.game.screen.blit(overlay, (0, 0))
+        self.game.screen.blit(self.image, (431, 170))
+        for button in self.buttons:
+            button.draw()
+
+    def buttons_clicked(self):
+        for button in self.buttons:
+            button.clicked()
+
+    def play_button_clicked(self):
+        self.game.is_paused = False
+        self.game.state.elapsed_pause_time = pg.time.get_ticks() - self.game.state.start_pause_time # Calculate pause duration
+        self.game.state.start_time += self.game.state.elapsed_pause_time # Shifts start time forward when unpaused
+
+    def home_button_clicked(self):
+        self.game.is_paused = False
+        self.game.state = self.game.play_mode
+
+    def controls_button_clicked(self):
+        print('Controls button clicked.')
 
 class Dijkstra:
     def __init__(self, maze):
