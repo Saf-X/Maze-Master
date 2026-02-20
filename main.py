@@ -2,9 +2,11 @@ import pygame as pg
 import sys
 import random
 import os
+import json
 
 # Initialise Pygame
 pg.init()
+pg.mixer.init()
 
 # Constants
 SCREEN_WIDTH = 1280
@@ -63,7 +65,9 @@ class Game:
         self.play_mode = PlayMode(self)
         self.endless_game_mode = EndlessGameMode(self)
         self.pause_menu = PauseMenu(self)
+        self.win_screen = WinScreen(self)
         self.is_paused = False
+        self.win = False
         self.state = self.title_screen
         self.mouse_pos = pg.mouse.get_pos()
         self.mouse_x = self.mouse_pos[0]
@@ -80,6 +84,8 @@ class Game:
                 if event.type == pg.MOUSEBUTTONDOWN and event.button == 1: # Mouse left-click
                     if self.is_paused:
                         self.pause_menu.buttons_clicked()
+                    elif self.win:
+                        self.win_screen.buttons_clicked()
                     else:
                         self.state.buttons_clicked()
                 if event.type == pg.KEYDOWN: # Updates current key pressed
@@ -91,10 +97,14 @@ class Game:
             self.mouse_y = self.mouse_pos[1]
 
             self.state.draw()
+
             if self.is_paused:
                 self.pause_menu.draw()
+            elif self.win:
+                self.win_screen.update()
+                self.win_screen.draw()        
             else:
-                self.state.update(self)
+                self.state.update()
 
             pg.display.update()
             self.clock.tick(FPS)
@@ -106,7 +116,7 @@ class TitleScreen:
         self.game = game
         self.image = load_image('title_screen.png')
         self.buttons = [
-            Button(self.game, SCREEN_WIDTH//2, 430, 'play_button.png', self.play_button_clicked),
+            Button(self.game, SCREEN_WIDTH // 2, 430, 'play_button1.png', self.play_button_clicked),
             Button(self.game, 1146, 668, 'education_button.png', self.education_button_clicked)
         ]
     
@@ -115,8 +125,8 @@ class TitleScreen:
         for button in self.buttons:
             button.draw()
 
-    def update(self, game):
-        self.game = game
+    def update(self):
+        pass
 
     def buttons_clicked(self):
         for button in self.buttons:
@@ -135,8 +145,8 @@ class PlayMode:
         self.buttons = [
             Button(self.game, 56, 670, 'back_button.png', self.back_button_clicked, 81, 72),
             Button(self.game, 1230, 670, 'settings_button.png', self.settings_button_clicked, 72, 72),
-            Button(self.game, SCREEN_WIDTH//2, 426, 'levels_button.png', self.levels_button_clicked),
-            Button(self.game, SCREEN_WIDTH//2, 564, 'endless_button.png', self.endless_button_clicked)
+            Button(self.game, SCREEN_WIDTH // 2, 426, 'levels_button.png', self.levels_button_clicked),
+            Button(self.game, SCREEN_WIDTH // 2, 564, 'endless_button.png', self.endless_button_clicked)
         ]
     
     def draw(self):
@@ -144,8 +154,8 @@ class PlayMode:
         for button in self.buttons:
             button.draw()
 
-    def update(self, game):
-        self.game = game
+    def update(self):
+        pass
 
     def buttons_clicked(self):
         for button in self.buttons:
@@ -162,9 +172,9 @@ class PlayMode:
 
     def endless_button_clicked(self):
         self.game.state = self.game.endless_game_mode
-        self.game.endless_game_mode.start_time = pg.time.get_ticks()
+        self.game.endless_game_mode.reset()
 
-class EndlessGameMode:
+class GameMode: # Parent Class
     def __init__(self, game):
         self.game = game
         self.image = load_image('blank.png')
@@ -172,29 +182,29 @@ class EndlessGameMode:
             Button(self.game, 50, 50, 'pause_button.png', self.pause_button_clicked, 72, 72)
         ]
         self.start_node_pos = (0, 0)
-        self.maze_width = 25
-        self.maze_height = 25
+        self.maze_width = None
+        self.maze_height = None
         self.maze_surface_pos = (353, 101)
         self.maze_surface_width = 575
         self.maze_surface_height = 575
-        self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
-        self.player = Player(self.game, self.maze, self.start_node_pos[0], self.start_node_pos[1])
+        self.maze = None
+        self.player = None
         self.start_time = pg.time.get_ticks() # Timer value when started
         self.elapsed_time = 0 # Seconds since level started
         self.start_pause_time = 0 # Timer value when paused
         self.elapsed_pause_time = 0 # Pause duration
         self.minutes = 0 # Clock display
         self.seconds = 0 # Clock display
-        self.win = False
-        self.goal_node_pos = (self.maze_width - 1, self.maze_height - 1)
-        self.goal_node_image = pg.transform.smoothscale(load_image('goal_node.png'), (self.maze.cell_size, self.maze.cell_size))
-        self.goal_node_rect = self.goal_node_image.get_rect()
+        self.goal_node_pos = None
+        self.goal_node_image = None
+        self.goal_node_rect = None
         self.timer_label_font = pg.font.Font(MONTSERRAT_BOLD, 40)
         self.timer_text_font = pg.font.Font(MONTSERRAT_REG, 40)
         self.moves_counter_label_font = pg.font.Font(MONTSERRAT_BOLD, 40)
         self.moves_counter_text_font = pg.font.Font(MONTSERRAT_REG, 40)
+        self.title = None
         self.title_text_font = pg.font.Font(PARKVANE, 50)
-        self.path = self.maze.run_dijkstra(self.start_node_pos, self.goal_node_pos)
+        self.path = None
         self.zero_star_image = pg.transform.smoothscale(load_image('0 star.png'), (153, 51))
         self.zero_star_rect = self.zero_star_image.get_rect()
         self.one_star_image = pg.transform.smoothscale(load_image('1 star.png'), (153, 51))
@@ -208,23 +218,37 @@ class EndlessGameMode:
 
     def draw(self):
         self.game.screen.blit(self.image,(0,0))
-        for button in self.buttons:
-            button.draw()
+        if not self.game.is_paused and not self.game.win:
+            for button in self.buttons:
+                button.draw()
         self.maze.draw(self.game.screen)
         self.draw_goal_node()
         self.player.draw()
         self.draw_title()
-        self.draw_timer()
-        self.draw_moves_counter()
-        self.draw_star_rating()
+        if not self.game.win:
+            self.draw_timer()
+            self.draw_moves_counter()
+            self.draw_star_rating()
 
-    def update(self, game):
-        self.game = game
-        self.player.update(self.game, self.maze)
-        self.update_star_rating()
-        if not self.win:
+    def update(self):
+        if not self.game.win:
+            self.player.update()
+            self.update_star_rating()
             self.update_timer()
-        self.is_winning()
+            self.is_winning()
+    
+    def reset(self):
+        self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
+        self.player = Player(self.game, self.maze, self.start_node_pos[0], self.start_node_pos[1])
+        self.start_time = pg.time.get_ticks() # Timer value when started
+        self.elapsed_time = 0 # Seconds since level started
+        self.start_pause_time = 0 # Timer value when paused
+        self.elapsed_pause_time = 0 # Pause duration
+        self.minutes = 0 # Clock display
+        self.seconds = 0 # Clock display
+        self.path = self.maze.run_dijkstra(self.start_node_pos, self.goal_node_pos)
+        self.star_rating = 3
+        self.game.win = False      
 
     def buttons_clicked(self):
         for button in self.buttons:
@@ -237,7 +261,7 @@ class EndlessGameMode:
     def draw_title(self):
         draw_text(
             self.game.screen,
-            'Endless',
+            self.title,
             self.maze_surface_pos[0],
             45,
             self.title_text_font,
@@ -294,7 +318,8 @@ class EndlessGameMode:
 
     def is_winning(self):
         if (self.player.x, self.player.y) == self.goal_node_pos:
-            self.win = True
+            self.game.win = True
+            self.game.win_screen.next_animation_time = pg.time.get_ticks() # Passes timer value to WinScreen when game won
 
     def draw_goal_node(self):
         self.goal_node_rect.center = self.maze.pos_to_px(self.goal_node_pos)
@@ -320,6 +345,25 @@ class EndlessGameMode:
             case 1:
                 self.one_star_rect.topleft = (775, 45)
                 self.game.screen.blit(self.one_star_image, self.one_star_rect)
+
+class EndlessGameMode(GameMode):
+    def __init__(self, game):
+        super().__init__(game)
+        self.maze_width = 15
+        self.maze_height = 15
+        self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
+        self.player = Player(self.game, self.maze, self.start_node_pos[0], self.start_node_pos[1])
+        self.goal_node_pos = (self.maze_width - 1, self.maze_height - 1)
+        self.goal_node_image = pg.transform.smoothscale(load_image('goal_node.png'), (self.maze.cell_size, self.maze.cell_size))
+        self.goal_node_rect = self.goal_node_image.get_rect()
+        self.title = 'Endless'
+        self.path = self.maze.run_dijkstra(self.start_node_pos, self.goal_node_pos)
+
+class LevelsGameMode(GameMode):
+    def __init__(self, game):
+        super().__init__(game)
+        
+
 
 class Button:
     def __init__(self, game, x, y, image, action = None, width = None, height = None):
@@ -556,9 +600,7 @@ class Player:
         self.toggle_trail = True
         self.moves = 0 
 
-    def update(self, game, maze): # Updates attributes every frame
-        self.game = game
-        self.maze = maze
+    def update(self):
         self.handle_input()
         self.move()
 
@@ -719,16 +761,15 @@ class PauseMenu:
         self.game = game
         self.image = pg.transform.smoothscale(load_image('paused.png'), (419, 161))
         self.buttons = [
-            Button(self.game, SCREEN_WIDTH//2, 421, 'play_button2.png', self.play_button_clicked, 206, 206),
+            Button(self.game, SCREEN_WIDTH // 2, 421, 'play_button2.png', self.play_button_clicked, 206, 206),
             Button(self.game, 452, 421, 'home_button.png', self.home_button_clicked, 139, 139),
             Button(self.game, 828, 421, 'controls_button.png', self.controls_button_clicked, 139, 139),
         ]
+        self.overlay = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pg.SRCALPHA) # Darkens screen
+        self.overlay.fill((0, 0, 0, 180))
     
     def draw(self):
-        overlay = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pg.SRCALPHA) # Darkens screen
-        overlay.fill((0, 0, 0, 180))
-        
-        self.game.screen.blit(overlay, (0, 0))
+        self.game.screen.blit(self.overlay, (0, 0))
         self.game.screen.blit(self.image, (431, 170))
         for button in self.buttons:
             button.draw()
@@ -744,6 +785,90 @@ class PauseMenu:
 
     def home_button_clicked(self):
         self.game.is_paused = False
+        self.game.state = self.game.play_mode
+
+    def controls_button_clicked(self):
+        print('Controls button clicked.')
+
+class WinScreen:
+    def __init__(self, game):
+        self.game = game
+        self.image1 = pg.transform.smoothscale(load_image('win1.png'), (720, 649))
+        self.image2 = pg.transform.smoothscale(load_image('win2.png'), (720, 649))
+        self.buttons = [
+            Button(self.game, SCREEN_WIDTH // 2, 421, 'replay_button.png', self.replay_button_clicked, 206, 206),
+            Button(self.game, 452, 421, 'home_button.png', self.home_button_clicked, 139, 139),
+            Button(self.game, 828, 421, 'controls_button.png', self.controls_button_clicked, 139, 139),
+        ]
+        self.overlay = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pg.SRCALPHA) # Darkens screen
+        self.overlay.fill((0, 0, 0, 180))
+        self.font = pg.font.Font(MONTSERRAT_BOLD, 32)
+        self.zero_star_image = pg.transform.smoothscale(load_image('0 star.png'), (261, 87))
+        self.one_star_image = pg.transform.smoothscale(load_image('1 star.png'), (261, 87))
+        self.two_star_image = pg.transform.smoothscale(load_image('2 star.png'), (261, 87))
+        self.three_star_image = pg.transform.smoothscale(load_image('3 star.png'), (261, 87))
+        self.current_star = 0 # Current star value during animation
+        self.current_star_image = self.zero_star_image # Current star animated
+        self.next_animation_time = 0
+        self.animation_delay = 500 # ms between each animation frame
+        self.star_sound = pg.mixer.Sound(os.path.join(SOUNDS_DIR, 'ding.wav'))
+        self.stop_animation = False
+    
+    def draw(self):
+        self.game.screen.blit(self.overlay, (0, 0))
+        self.game.screen.blit(self.current_star_image, (510, 186))
+        if self.stop_animation:
+            self.game.screen.blit(self.image2, (280, 41))
+            for button in self.buttons:
+                button.draw()
+            time = f'{self.game.state.minutes:02d}:{self.game.state.seconds:02d}' # Clock display MM:SS
+            draw_text(self.game.screen, time, SCREEN_WIDTH // 2, 590, self.font, (255, 255, 255), 'center')
+            moves = str(self.game.state.player.moves) # Obtain the no. moves made from Player class
+            draw_text(self.game.screen, moves, SCREEN_WIDTH // 2, 667, self.font, (255, 255, 255), 'center')
+        else:
+            self.game.screen.blit(self.image1, (280, 41))
+
+    def update(self):
+        self.animate()
+
+    def reset(self):
+        self.game.state.reset()
+        self.current_star = 0 # Current star value during animation
+        self.current_star_image = self.zero_star_image # Current star animated
+        self.next_animation_time = 0
+        self.stop_animation = False
+
+    def animate(self):
+        if self.game.win and not self.stop_animation:
+            current_time = pg.time.get_ticks() 
+            if self.current_star < self.game.state.star_rating:
+                if current_time - self.next_animation_time > self.animation_delay: # Display each star at intervals
+                    self.current_star += 1
+                    match self.current_star:
+                        case 0:
+                            self.current_star_image = self.zero_star_image
+                        case 1:
+                            self.current_star_image = self.one_star_image
+                        case 2:
+                            self.current_star_image = self.two_star_image
+                        case 3:
+                            self.current_star_image = self.three_star_image
+                    self.star_sound.play()
+                    self.next_animation_time = current_time
+            else:
+                if current_time - self.next_animation_time > self.animation_delay: # Adds delay between star animation and rest of UI display
+                    self.stop_animation = True
+
+    def buttons_clicked(self):
+        if self.stop_animation:
+            for button in self.buttons:
+                button.clicked()
+
+    def replay_button_clicked(self):
+        self.reset()
+
+    def home_button_clicked(self):
+        self.reset()
         self.game.state = self.game.play_mode
 
     def controls_button_clicked(self):
