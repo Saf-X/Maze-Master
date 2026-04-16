@@ -12,16 +12,10 @@ pg.mixer.init()
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
 FPS = 60
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
 GREEN = (7, 168, 18)
-SPRING_GREEN = (71, 212, 90)
-ORANGE = (255, 192, 0)
 LIGHT_ORANGE = (255, 204, 153)
-RED = (192, 0, 0)
 CYAN = (102, 255, 255)
 PINK = (255, 0, 255)
-GOLD = (255, 215, 0)
 
 # File directories
 MAIN_DIR = os.path.dirname(__file__)
@@ -40,7 +34,7 @@ PARKVANE = os.path.join(FONTS_DIR, 'Parkvane_Font_Family', 'Parkvane Regular 400
 def load_image(filename):
     return pg.image.load(os.path.join(IMAGES_DIR, filename)).convert_alpha()
 
-def draw_text(screen, text, x, y, font, colour = WHITE, align = 'topleft'):
+def draw_text(screen, text, x, y, font, colour = (255, 255, 255), align = 'topleft'):
     text_surface = font.render(text, True, colour)
 
     rect = text_surface.get_rect()
@@ -72,8 +66,7 @@ class Game:
         self.levels_game_mode = LevelsGameMode(self)
         self.endless_game_mode = EndlessGameMode(self)
         self.pause_menu = PauseMenu(self)
-        self.endless_win_screen = EndlessWinScreen(self)
-        self.levels_win_screen = LevelsWinScreen(self)
+        self.win_screen = WinScreen(self)
         self.is_paused = False
         self.win = False
         self.state = self.title_screen
@@ -93,10 +86,7 @@ class Game:
                     if self.is_paused:
                         self.pause_menu.buttons_clicked()
                     elif self.win:
-                        if self.state == self.endless_game_mode:
-                            self.endless_win_screen.buttons_clicked() 
-                        elif self.state == self.levels_game_mode:
-                            self.levels_win_screen.buttons_clicked()
+                        self.win_screen.buttons_clicked()
                     else:
                         self.state.buttons_clicked()
                 if event.type == pg.KEYDOWN: # Updates current key pressed
@@ -112,12 +102,8 @@ class Game:
             if self.is_paused:
                 self.pause_menu.draw()
             elif self.win:
-                if self.state == self.endless_game_mode:
-                    self.endless_win_screen.update()
-                    self.endless_win_screen.draw()   
-                elif self.state == self.levels_game_mode:
-                    self.levels_win_screen.update()
-                    self.levels_win_screen.draw()                                         
+                self.win_screen.update()
+                self.win_screen.draw()        
             else:
                 self.state.update()
 
@@ -160,20 +146,14 @@ class PlayMode:
         self.buttons = [
             Button(self.game, 56, 670, 'back_button.png', self.back_button_clicked, 81, 72),
             Button(self.game, 1230, 670, 'settings_button.png', self.settings_button_clicked, 72, 72),
-            Button(self.game, SCREEN_WIDTH // 2, 426, ['levels_button.png', 'dark_levels_button.png'], self.levels_button_clicked),
-            Button(self.game, SCREEN_WIDTH // 2, 564, ['endless_button.png', 'dark_endless_button.png'], self.endless_button_clicked),
-            Button(self.game, 43, 55, ['light_on.png', 'light_off.png'], self.darkness_mode_button_clicked, 55, 110)
+            Button(self.game, SCREEN_WIDTH // 2, 426, 'levels_button.png', self.levels_button_clicked),
+            Button(self.game, SCREEN_WIDTH // 2, 564, 'endless_button.png', self.endless_button_clicked)
         ]
-        self.UI_text_font = pg.font.Font(MONTSERRAT_REG, 43)
-        self.darkness_mode = False
-        self.black_surface = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-        self.black_surface.fill(BLACK)
     
     def draw(self):
-        self.game.screen.blit(self.image, (0, 0))
+        self.game.screen.blit(self.image, (0,0))
         for button in self.buttons:
             button.draw()
-        self.draw_UI_elements()
 
     def update(self):
         pass
@@ -189,54 +169,15 @@ class PlayMode:
         print('Settings button clicked.')
 
     def levels_button_clicked(self):
-        self.game.state = self.game.levels_game_mode
+        print('Levels button clicked.')
 
     def endless_button_clicked(self):
         self.game.state = self.game.endless_game_mode
         self.game.endless_game_mode.reset()
-    
-    def darkness_mode_button_clicked(self):
-        self.darkness_mode = not self.darkness_mode # Toggles darkness mode on/off
-        if self.darkness_mode:
-            self.image = load_image('dark_play_mode.png')
-            self.game.levels_game_mode.image = self.black_surface
-            self.game.endless_game_mode.image = self.black_surface
-        else:
-            self.image = load_image('play_mode.png')
-            self.game.levels_game_mode.image = load_image('blank.png')
-            self.game.endless_game_mode.image = load_image('blank.png')
-
-    def draw_UI_elements(self):
-        draw_text( # Levels button text
-            self.game.screen,
-            f'{self.game.levels_game_mode.levels_completed} / 45',
-            SCREEN_WIDTH // 2,
-            426,
-            self.UI_text_font,
-            WHITE,
-            'center'
-        )
-        shortest_time = self.game.endless_game_mode.shortest_time
-        minutes = shortest_time // 60
-        seconds = shortest_time % 60
-        time = f'{minutes:01d} : {seconds:02d}' # Clock display MM : SS
-        draw_text( # Endless button text
-            self.game.screen,
-            time,
-            SCREEN_WIDTH // 2,
-            564,
-            self.UI_text_font,
-            WHITE,
-            'center'
-        )
 
 class GameMode: # Parent Class
     def __init__(self, game):
         self.game = game
-        if self.game.play_mode.darkness_mode:
-            self.mode = 'darkness'
-        else:
-            self.mode = 'normal'
         self.image = load_image('blank.png')
         self.buttons = [
             Button(self.game, 50, 50, 'pause_button.png', self.pause_button_clicked, 72, 72)
@@ -258,10 +199,11 @@ class GameMode: # Parent Class
         self.goal_node_pos = None
         self.goal_node_image = None
         self.goal_node_rect = None
-        self.UI_label_font = pg.font.Font(MONTSERRAT_BOLD, 40)
-        self.UI_text_font = pg.font.Font(MONTSERRAT_REG, 40)
+        self.timer_label_font = pg.font.Font(MONTSERRAT_BOLD, 40)
+        self.timer_text_font = pg.font.Font(MONTSERRAT_REG, 40)
+        self.moves_counter_label_font = pg.font.Font(MONTSERRAT_BOLD, 40)
+        self.moves_counter_text_font = pg.font.Font(MONTSERRAT_REG, 40)
         self.title = None
-        self.title_colour = None
         self.title_text_font = pg.font.Font(PARKVANE, 50)
         self.path = None
         self.zero_star_image = pg.transform.smoothscale(load_image('0 star.png'), (153, 51))
@@ -273,7 +215,45 @@ class GameMode: # Parent Class
         self.three_star_image = pg.transform.smoothscale(load_image('3 star.png'), (153, 51))
         self.three_star_rect = self.three_star_image.get_rect()
         self.star_rating = 3
-        self.speed_constant = 6.02 # Solving speed to acheive 3/3 stars      
+        self.speed_constant = 6.02 # Solving speed to acheive 3/3 stars
+
+    def draw(self):
+        self.game.screen.blit(self.image,(0,0))
+        if not self.game.is_paused and not self.game.win:
+            for button in self.buttons:
+                button.draw()
+        self.maze.draw(self.game.screen)
+        self.draw_goal_node()
+        self.player.draw()
+        self.draw_title()
+        if not self.game.win:
+            self.draw_timer()
+            self.draw_moves_counter()
+            self.draw_star_rating()
+
+    def update(self):
+        if not self.game.win:
+            self.player.update()
+            self.update_star_rating()
+            self.update_timer()
+            self.is_winning()
+    
+    def reset(self):
+        self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
+        self.player = Player(self.game, self.maze, self.start_node_pos[0], self.start_node_pos[1])
+        self.start_time = pg.time.get_ticks() # Timer value when started
+        self.elapsed_time = 0 # Seconds since level started
+        self.start_pause_time = 0 # Timer value when paused
+        self.elapsed_pause_time = 0 # Pause duration
+        self.minutes = 0 # Clock display
+        self.seconds = 0 # Clock display
+        self.path = self.maze.run_dijkstra(self.start_node_pos, self.goal_node_pos)
+        self.star_rating = 3
+        self.game.win = False      
+
+    def buttons_clicked(self):
+        for button in self.buttons:
+            button.clicked()
 
     def pause_button_clicked(self):
         self.game.is_paused = True
@@ -286,7 +266,7 @@ class GameMode: # Parent Class
             self.maze_surface_pos[0],
             45,
             self.title_text_font,
-            self.title_colour,
+            PINK,
             'topleft'
         )
 
@@ -302,7 +282,7 @@ class GameMode: # Parent Class
             'Timer:',
             (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2,
             130,
-            self.UI_label_font,
+            self.timer_label_font,
             LIGHT_ORANGE,
             'center'
         )
@@ -311,7 +291,7 @@ class GameMode: # Parent Class
             time,
             (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2,
             200,
-            self.UI_text_font,
+            self.timer_text_font,
             LIGHT_ORANGE,
             'center'
         )
@@ -323,7 +303,7 @@ class GameMode: # Parent Class
             'Moves:',
             (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2,
             340,
-            self.UI_label_font,
+            self.moves_counter_label_font,
             CYAN,
             'center'
         )
@@ -332,7 +312,7 @@ class GameMode: # Parent Class
             moves,
             (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2,
             410,
-            self.UI_text_font,
+            self.moves_counter_text_font,
             CYAN,
             'center'
         )
@@ -340,10 +320,7 @@ class GameMode: # Parent Class
     def is_winning(self):
         if (self.player.x, self.player.y) == self.goal_node_pos:
             self.game.win = True
-            if self.game.state == self.game.endless_game_mode:
-                self.game.endless_win_screen.next_animation_time = pg.time.get_ticks() # Passes timer value to WinScreen when game won
-            elif self.game.state == self.game.levels_game_mode:
-                self.game.levels_win_screen.next_animation_time = pg.time.get_ticks() # Passes timer value to WinScreen when game won
+            self.game.win_screen.next_animation_time = pg.time.get_ticks() # Passes timer value to WinScreen when game won
 
     def draw_goal_node(self):
         self.goal_node_rect.center = self.maze.pos_to_px(self.goal_node_pos)
@@ -370,444 +347,78 @@ class GameMode: # Parent Class
                 self.one_star_rect.topleft = (775, 45)
                 self.game.screen.blit(self.one_star_image, self.one_star_rect)
 
-    def draw_darkness_mode_overlay(self):
-        self.darkness_mode_overlay = pg.Surface((self.maze_surface_width, self.maze_surface_height), pg.SRCALPHA)
-        self.darkness_mode_overlay.fill((0, 0, 0, 255))
-        pixel_x = int(self.player.px[0] - self.maze.start_x) # Relative x-coord of darkness overlay surface
-        pixel_y = int(self.player.px[1] - self.maze.start_y) # Relative y-coord of darkness overlay surface
-        radius = int(self.maze.cell_size * 2.5) # Give a 5 cell thick diameter
-        pg.draw.circle(self.darkness_mode_overlay, (0, 0, 0, 0), (pixel_x, pixel_y), radius) # Draws transparent circle as a hole
-        self.game.screen.blit(self.darkness_mode_overlay, self.maze_surface_pos) 
-        
 class EndlessGameMode(GameMode):
     def __init__(self, game):
         super().__init__(game)
-        with open(os.path.join(DATA_DIR, 'stats.json'), 'r') as f:
-            self.stats = json.load(f) # Stats dictionary
-        self.shortest_time = self.stats['shortest_time'][self.mode]
-        self.current_streak = 0
-        self.best_streak = self.stats['best_streak'][self.mode]
-        self.maze_width = 20
-        self.maze_height = 20
+        self.maze_width = 10
+        self.maze_height = 10
         self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
         self.player = Player(self.game, self.maze, self.start_node_pos[0], self.start_node_pos[1])
         self.goal_node_pos = (self.maze_width - 1, self.maze_height - 1)
         self.goal_node_image = pg.transform.smoothscale(load_image('goal_node.png'), (self.maze.cell_size, self.maze.cell_size))
         self.goal_node_rect = self.goal_node_image.get_rect()
         self.title = 'Endless'
-        self.title_colour = PINK
         self.path = self.maze.run_dijkstra(self.start_node_pos, self.goal_node_pos)
-
-    def draw(self):
-        self.game.screen.blit(self.image,(0,0))
-        if not self.game.is_paused and not self.game.win:
-            for button in self.buttons:
-                button.draw()
-        self.maze.draw(self.game.screen)
-        self.draw_goal_node()
-        self.player.draw()
-        self.draw_title()
-        if self.game.play_mode.darkness_mode:
-            self.draw_darkness_mode_overlay()
-        if not self.game.win:
-            self.draw_timer()
-            self.draw_moves_counter()
-            self.draw_current_streak()
-            self.draw_best_streak()
-            self.draw_star_rating()
-
-    def update(self):
-        if self.game.play_mode.darkness_mode:
-            self.mode = 'darkness'
-        else:
-            self.mode = 'normal'
-        if not self.game.win:
-            self.player.update()
-            self.update_star_rating()
-            self.update_timer()
-            self.is_winning()
-    
-    def reset(self):
-        self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
-        self.player = Player(self.game, self.maze, self.start_node_pos[0], self.start_node_pos[1])
-        self.start_time = pg.time.get_ticks() # Timer value when started
-        self.elapsed_time = 0 # Seconds since level started
-        self.start_pause_time = 0 # Timer value when paused
-        self.elapsed_pause_time = 0 # Pause duration
-        self.minutes = 0 # Clock display
-        self.seconds = 0 # Clock display
-        self.path = self.maze.run_dijkstra(self.start_node_pos, self.goal_node_pos)
-        self.star_rating = 3
-        self.game.win = False
-
-    def buttons_clicked(self):
-        for button in self.buttons:
-            button.clicked()
-
-    def draw_current_streak(self):
-        draw_text(
-            self.game.screen,
-            'Current Streak:',
-            (SCREEN_WIDTH - self.maze_surface_pos[0] - self.maze_surface_width) // 2,
-            130,
-            self.UI_label_font,
-            WHITE,
-            'center'
-        )
-        draw_text(
-            self.game.screen,
-            str(self.current_streak),
-            (SCREEN_WIDTH - self.maze_surface_pos[0] - self.maze_surface_width) // 2,
-            200,
-            self.UI_text_font,
-            WHITE,
-            'center'
-        )
-
-    def draw_best_streak(self):
-        draw_text(
-            self.game.screen,
-            'Best Streak:',
-            (SCREEN_WIDTH - self.maze_surface_pos[0] - self.maze_surface_width) // 2,
-            340,
-            self.UI_label_font,
-            GOLD,
-            'center'
-        )
-        draw_text(
-            self.game.screen,
-            str(self.best_streak),
-            (SCREEN_WIDTH - self.maze_surface_pos[0] - self.maze_surface_width) // 2,
-            410,
-            self.UI_text_font,
-            GOLD,
-            'center'
-        )
 
 class LevelsGameMode(GameMode):
     def __init__(self, game):
         super().__init__(game)
+        self.levels = [] # Levels dictionary
+        # for i in range(1, 46):
+        #     if i <= 15: # Easy
+        #         maze = Maze(15, 15, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
+        #     elif i <= 30: # Medium
+        #         maze = Maze(20, 20, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
+        #     else: # Hard
+        #         maze = Maze(30, 30, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
+        #     array = maze.to_dict()
+        #     self.levels.append({'number': i, 'maze': array, 'stars': 0})
+
+        # with open(os.path.join(DATA_DIR, 'levels.json'), 'w') as f: # Saves to the data file directory
+        #     json.dump(self.levels, f, indent = 4)
+
         with open(os.path.join(DATA_DIR, 'levels.json'), 'r') as f:
             self.levels = json.load(f) # Levels dictionary
-        self.current_level = self.levels[0]
-        self.levels_completed = 0
-        self.stars_collected = 0
-        for level in self.levels:
-            self.stars_collected += level['stars'][self.mode]
-            if level['stars'][self.mode] > 0:
-                self.levels_completed += 1
-        self.maze_width = len(self.current_level['maze'])
-        self.maze_height = len(self.current_level['maze'][0])
-        self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height, self.current_level['maze'])
-        self.player = Player(self.game, self.maze, self.start_node_pos[0], self.start_node_pos[1])
-        self.goal_node_pos = (self.maze_width - 1, self.maze_height - 1)
-        self.goal_node_image = pg.transform.smoothscale(load_image('goal_node.png'), (self.maze.cell_size, self.maze.cell_size))
-        self.goal_node_rect = self.goal_node_image.get_rect()
-        self.path = self.maze.run_dijkstra(self.start_node_pos, self.goal_node_pos)
-        self.page = 1
-        self.page_image = [
-            pg.transform.smoothscale(load_image('page1.png'), (60, 14)),
-            pg.transform.smoothscale(load_image('page2.png'), (60, 14)),
-            pg.transform.smoothscale(load_image('page3.png'), (60, 14))
-        ]
-        self.star_image = pg.transform.smoothscale(load_image('yellow_star.png'), (30, 30))
-        self.select_title_text_font = pg.font.Font(PARKVANE, 80)
-        self.level_number_font = pg.font.Font(MONTSERRAT_BOLD, 64)
-        self.stars_collected_font = pg.font.Font(MONTSERRAT_REG, 24)
-        self.state = 'select' # This mode has two states: Select (choose level) & Play (play level)
-        self.select_buttons = [
-            Button(self.game, 56, 670, 'back_button.png', self.back_button_clicked, 81, 72),
-            Button(self.game, 1230, 670, 'settings_button.png', self.settings_button_clicked, 72, 72),
-            Button(self.game, 140, 400, 'previous_button.png', self.previous_button_clicked, 182, 182),
-            Button(self.game, 1140, 400, 'next_button.png', self.next_button_clicked, 182, 182)
-        ]
-        self.levels_icons = []
-        levels_icon_start_x = 263
-        levels_icon_start_y = 211
-        levels_icon_spacing = (SCREEN_WIDTH - 2 * levels_icon_start_x) // 4
-        for i in range(45):
-            column = i % 5
-            row = i // 5 % 3
-            x = levels_icon_start_x + column * levels_icon_spacing
-            y = levels_icon_start_y + row * levels_icon_spacing
-            if i // 15 == 0:
-                image = 'easy_icon.png'
-            elif i // 15 == 1:
-                image = 'medium_icon.png'
-            else:
-                image = 'hard_icon.png'
-            self.levels_icons.append(Button(self.game, x, y, [image, 'dark_icon.png'], self.play_level, 182, 182, i + 1))
-        self.play_buttons = self.buttons # Taken from parent class and also used for endless game mode
-
-    def draw(self):
-        self.game.screen.blit(self.image, (0, 0))
-        match self.page:
-                case 1:
-                    self.difficulty = 'Easy'
-                    self.title_colour = SPRING_GREEN
-                case 2:
-                    self.difficulty = 'Medium'
-                    self.title_colour = ORANGE
-                case 3:
-                    self.difficulty = 'Hard'
-                    self.title_colour = RED
-        if self.state == 'select':
-            draw_text( # Draws the Levels Selector Title
-                self.game.screen,
-                self.difficulty,
-                SCREEN_WIDTH // 2,
-                67,
-                self.select_title_text_font,
-                self.title_colour,
-                'center'
-            )    
-            for button in self.select_buttons[:2]:
-                button.draw()
-            self.game.screen.blit(self.page_image[self.page - 1], (610, 686))
-            match self.page:
-                case 1:
-                    self.select_buttons[3].draw()
-                    for icon in self.levels_icons[:15]:
-                        icon.draw()
-                case 2:
-                    self.select_buttons[2].draw()
-                    self.select_buttons[3].draw()
-                    for icon in self.levels_icons[15:30]:
-                        icon.draw()
-                case 3:
-                    self.select_buttons[2].draw()
-                    for icon in self.levels_icons[30:]:
-                        icon.draw()
-            self.draw_icon_info()
-            self.draw_stars_collected()
-        if self.state == 'play':
-            if not self.game.is_paused and not self.game.win:
-                for button in self.play_buttons:
-                    button.draw()
-            self.maze.draw(self.game.screen)
-            self.draw_goal_node()
-            self.player.draw()
-            self.title = f'Level {self.current_level["number"]}'
-            self.draw_title()
-            if self.game.play_mode.darkness_mode:
-                self.draw_darkness_mode_overlay()
-            self.draw_instructions()
-            if not self.game.win:
-                self.draw_timer()
-                self.draw_moves_counter()
-                self.draw_star_rating()
-
-    def update(self):
-        if self.game.play_mode.darkness_mode:
-            self.mode = 'darkness'
-        else:
-            self.mode = 'normal'
-        if not self.game.win and self.state == 'play':
-            self.player.update()
-            self.update_star_rating()
-            self.update_timer()
-            self.is_winning()
-    
-    def reset(self):
-        self.player = Player(self.game, self.maze, self.start_node_pos[0], self.start_node_pos[1])
-        self.start_time = pg.time.get_ticks() # Timer value when started
-        self.elapsed_time = 0 # Seconds since level started
-        self.start_pause_time = 0 # Timer value when paused
-        self.elapsed_pause_time = 0 # Pause duration
-        self.minutes = 0 # Clock display
-        self.seconds = 0 # Clock display
-        self.star_rating = 3
-        self.game.win = False
-
-    
-    def buttons_clicked(self):
-        if self.state == 'select':
-            for button in self.select_buttons[:2]:
-                button.clicked()
-            match self.page:
-                case 1:
-                    self.select_buttons[3].clicked()
-                    for icon in self.levels_icons[:15]:
-                        icon.clicked()
-                case 2:
-                    self.select_buttons[2].clicked()
-                    self.select_buttons[3].clicked()
-                    for icon in self.levels_icons[15:30]:
-                        icon.clicked()
-                case 3:
-                    self.select_buttons[2].clicked()
-                    for icon in self.levels_icons[30:]:
-                        icon.clicked()
-        elif self.state == 'play':
-            for button in self.play_buttons:
-                button.clicked()
-
-    def back_button_clicked(self):
-        self.game.state = self.game.play_mode
-
-    def settings_button_clicked(self):
-        print('Settings button clicked.')
-
-    def previous_button_clicked(self):
-        self.page -= 1
-
-    def next_button_clicked(self):
-        self.page += 1
-    
-    def play_level(self, num):
-        self.current_level = self.levels[num - 1]
-        self.maze_width = len(self.current_level['maze'])
-        self.maze_height = len(self.current_level['maze'][0])
-        self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height, self.current_level['maze'])
-        self.player = Player(self.game, self.maze, self.start_node_pos[0], self.start_node_pos[1])
-        self.goal_node_pos = (self.maze_width - 1, self.maze_height - 1)
-        self.goal_node_image = pg.transform.smoothscale(load_image('goal_node.png'), (self.maze.cell_size, self.maze.cell_size))
-        self.goal_node_rect = self.goal_node_image.get_rect()
-        self.path = self.maze.run_dijkstra(self.start_node_pos, self.goal_node_pos)
-        self.state = 'play'
-        self.reset()
         
-    def draw_icon_info(self): # Draw the numbers and star rating on each level icon button
-        match self.page:
-            case 1:
-                start, stop = 0, 15
-            case 2:
-                start, stop = 15, 30
-            case 3:
-                start, stop = 30, 45
-        for i in range(start, stop):
-            draw_text(
-                self.game.screen,
-                str(i + 1),
-                self.levels_icons[i].x,
-                self.levels_icons[i].y,
-                self.level_number_font,
-                WHITE,
-                'center'
-            )
-            match self.levels[i]['stars'][self.mode]:
-                case 0:
-                    star_rating_image = self.zero_star_image
-                    star_rating_rect = self.zero_star_rect
-                    star_rating_rect.center = (self.levels_icons[i].x, self.levels_icons[i].y + 70)
-                case 1:
-                    star_rating_image = self.one_star_image
-                    star_rating_rect = self.one_star_rect
-                    star_rating_rect.center = (self.levels_icons[i].x, self.levels_icons[i].y + 70)
-                case 2:
-                    star_rating_image = self.two_star_image
-                    star_rating_rect = self.two_star_rect
-                    star_rating_rect.center = (self.levels_icons[i].x, self.levels_icons[i].y + 70)
-                case 3:
-                    star_rating_image = self.three_star_image
-                    star_rating_rect = self.three_star_rect
-                    star_rating_rect.center = (self.levels_icons[i].x, self.levels_icons[i].y + 70)
-            self.game.screen.blit(star_rating_image, star_rating_rect)
-    
-    def draw_instructions(self):
-        if self.current_level['number'] == 1:
-            draw_text( # Line 1
-                self.game.screen,
-                'Press',
-                (self.maze_surface_pos[0]) // 2,
-                SCREEN_HEIGHT // 2 - 125,
-                self.UI_text_font,
-                WHITE,
-                'center'
-            )
-            draw_text( # Line 2
-                self.game.screen,
-                'ARROW',
-                (self.maze_surface_pos[0]) // 2 - 51,
-                SCREEN_HEIGHT // 2 - 75,
-                self.UI_label_font,
-                WHITE,
-                'center'
-            )
-            draw_text( # Line 2
-                self.game.screen,
-                'keys',
-                (self.maze_surface_pos[0]) // 2 + 89,
-                SCREEN_HEIGHT // 2 - 75,
-                self.UI_text_font,
-                WHITE,
-                'center'
-            )
-            draw_text( # Line 3
-                self.game.screen,
-                'or',
-                (self.maze_surface_pos[0]) // 2,
-                SCREEN_HEIGHT // 2 - 25,
-                self.UI_text_font,
-                WHITE,
-                'center'
-            )
-            draw_text( # Line 4
-                self.game.screen,
-                'W A S D',
-                (self.maze_surface_pos[0]) // 2,
-                SCREEN_HEIGHT // 2 + 25,
-                self.UI_label_font,
-                WHITE,
-                'center'
-            )
-            draw_text( # Line 5
-                self.game.screen,
-                'to move',
-                (self.maze_surface_pos[0]) // 2,
-                SCREEN_HEIGHT // 2 + 125,
-                self.UI_text_font,
-                WHITE,
-                'center'
-            )
-    
-    def draw_stars_collected(self):
-        draw_text(
-            self.game.screen,
-            f'{self.stars_collected} / 135',
-            SCREEN_WIDTH - 100,
-            8,
-            self.stars_collected_font,
-            WHITE,
-            'topleft'
-        )
-        self.game.screen.blit(self.star_image, (SCREEN_WIDTH - 133, 7))
+        for level in self.levels:
+            normal_score = level["stars"]
+            level["stars"] = {"normal": normal_score, "darkness": 0}
+
+        with open(os.path.join(DATA_DIR, 'levels.json'), 'w') as f:
+            json.dump(self.levels, f, indent = 4)
+
+        
+
+
+
+
+
+
+
+
 
 class Button:
-    def __init__(self, game, x, y, images, action = None, width = None, height = None, name = None):
+    def __init__(self, game, x, y, image, action = None, width = None, height = None):
         self.game = game
         self.x = x
         self.y = y
-        self.images= []
         if width and height:
-            if isinstance(images, list): # List and has width and height scaling
-                for image in images:
-                    self.images.append(pg.transform.smoothscale(load_image(image), (width, height)))
-            else: # Not list and has width and height scaling
-                self.images.append(pg.transform.smoothscale(load_image(images), (width, height)))
+            self.image = pg.transform.smoothscale(load_image(image), (width, height))
         else:
-            if isinstance(images, list): # List and has no width and height scaling
-                for image in images:
-                    self.images.append(load_image(image))
-            else: # Not list and has no width and height scaling
-                self.images.append(load_image(images))
-        self.mask = pg.mask.from_surface(self.images[0]) # Creates mask of button
-        self.rect = self.images[0].get_rect(center = (x, y))
+            self.image = load_image(image)
+        self.mask = pg.mask.from_surface(self.image) # Creates mask of button
+        self.rect = self.image.get_rect(center = (x, y))
         self.action = action
-        self.name = name
 
     def draw(self):
-        self.game.screen.blit(self.images[min(len(self.images) - 1, int(self.game.play_mode.darkness_mode))], self.rect) # Draws correct image according to theme
+        self.game.screen.blit(self.image, self.rect)
     
     def clicked(self):
         if self.rect.collidepoint(self.game.mouse_pos): # First checks if button rectangle is clicked
             pixel_x = self.game.mouse_x - self.rect.left # Relative x-coord of image pixel clicked
             pixel_y = self.game.mouse_y - self.rect.top # Relative y-coord of image pixel clicked
             if self.mask.get_at((pixel_x, pixel_y)): # Checks if pixel clicked is not transparent
-                if self.name:
-                    self.action(self.name) # Passes name for reference if included
-                else:
-                    self.action()
+                self.action()
 
 class Node:
     def __init__(self, x, y):
@@ -821,7 +432,7 @@ class Node:
         self.heuristic = 0
 
 class Maze:
-    def __init__(self, width, height, surface_pos, surface_width, surface_height, walls_dict = None):
+    def __init__(self, width, height, surface_pos, surface_width, surface_height, generate = True):
         self.width = width
         self.height = height
         self.stack = []
@@ -831,11 +442,7 @@ class Maze:
         # Determine the coords of where to start drawing from to ensure the maze is aligned at the centre
         self.start_x = surface_pos[0] + (surface_width - self.cell_size * self.width) // 2
         self.start_y = surface_pos[1] + (surface_height - self.cell_size * self.height) // 2
-        if walls_dict: # If walls dict provided then fill in walls
-            for x in range(self.width):
-                for y in range(self.height):
-                    self.array[x][y].walls = walls_dict[x][y]
-        else: # Else generate walls
+        if generate:
             self.generate()
 
     def to_dict(self): # Converts Maze object into a JSON-friendly dictionary
@@ -906,7 +513,7 @@ class Maze:
             else:
                 self.stack.pop()
 
-    def draw(self, screen, wall_colour = WHITE):
+    def draw(self, screen, wall_colour=(255,255,255)):
         wall_thickness = max(self.cell_size // 12, 1) # Cell size : Wall thickenss ratio - minimum 1px
         # Draw border
         top_border = pg.Rect(
@@ -1042,7 +649,7 @@ class Player:
         if not self.is_moving: # Resets queued direction to none when stationary
             self.queued_direction = None
 
-        if self.game.key_pressed == pg.K_UP or self.game.key_pressed == pg.K_w: # Up key / W clicked
+        if self.game.key_pressed == pg.K_UP: # Up key clicked
             if not self.maze.array[int(self.x)][int(self.y)].walls['top'] and not self.is_moving:
                 self.direction = 'north'
                 self.is_moving = True
@@ -1051,7 +658,7 @@ class Player:
                 self.handle_backtracking()
             elif self.is_moving:
                 self.queued_direction = 'north'
-        elif self.game.key_pressed == pg.K_DOWN or self.game.key_pressed == pg.K_s: # Down key / S clicked
+        elif self.game.key_pressed == pg.K_DOWN: # Down key clicked
             if not self.maze.array[int(self.x)][int(self.y)].walls['bottom'] and not self.is_moving:
                 self.direction = 'south'
                 self.is_moving = True
@@ -1060,7 +667,7 @@ class Player:
                 self.handle_backtracking()
             elif self.is_moving:
                 self.queued_direction = 'south'
-        elif self.game.key_pressed == pg.K_LEFT or self.game.key_pressed == pg.K_a: # Left key / A clicked
+        elif self.game.key_pressed == pg.K_LEFT: # Left key clicked
             if not self.maze.array[int(self.x)][int(self.y)].walls['left'] and not self.is_moving:
                 self.direction = 'west'
                 self.is_moving = True
@@ -1069,7 +676,7 @@ class Player:
                 self.handle_backtracking()
             elif self.is_moving:
                 self.queued_direction = 'west'
-        elif self.game.key_pressed == pg.K_RIGHT or self.game.key_pressed == pg.K_d: # Right key / D clicked
+        elif self.game.key_pressed == pg.K_RIGHT: # Right key clicked
             if not self.maze.array[int(self.x)][int(self.y)].walls['right'] and not self.is_moving:
                 self.direction = 'east'
                 self.is_moving = True
@@ -1219,10 +826,7 @@ class PauseMenu:
 
     def home_button_clicked(self):
         self.game.is_paused = False
-        if self.game.state == self.game.levels_game_mode:
-            self.game.state.state = 'select'
-        else:
-            self.game.state = self.game.play_mode
+        self.game.state = self.game.play_mode
 
     def controls_button_clicked(self):
         print('Controls button clicked.')
@@ -1232,6 +836,11 @@ class WinScreen:
         self.game = game
         self.image1 = pg.transform.smoothscale(load_image('win1.png'), (720, 649))
         self.image2 = pg.transform.smoothscale(load_image('win2.png'), (720, 649))
+        self.buttons = [
+            Button(self.game, SCREEN_WIDTH // 2, 421, 'replay_button.png', self.replay_button_clicked, 206, 206),
+            Button(self.game, 452, 421, 'home_button.png', self.home_button_clicked, 139, 139),
+            Button(self.game, 828, 421, 'controls_button.png', self.controls_button_clicked, 139, 139),
+        ]
         self.overlay = pg.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pg.SRCALPHA) # Darkens screen
         self.overlay.fill((0, 0, 0, 180))
         self.font = pg.font.Font(MONTSERRAT_BOLD, 32)
@@ -1254,9 +863,9 @@ class WinScreen:
             for button in self.buttons:
                 button.draw()
             time = f'{self.game.state.minutes:02d}:{self.game.state.seconds:02d}' # Clock display MM:SS
-            draw_text(self.game.screen, time, SCREEN_WIDTH // 2, 590, self.font, WHITE, 'center')
+            draw_text(self.game.screen, time, SCREEN_WIDTH // 2, 590, self.font, (255, 255, 255), 'center')
             moves = str(self.game.state.player.moves) # Obtain the no. moves made from Player class
-            draw_text(self.game.screen, moves, SCREEN_WIDTH // 2, 667, self.font, WHITE, 'center')
+            draw_text(self.game.screen, moves, SCREEN_WIDTH // 2, 667, self.font, (255, 255, 255), 'center')
         else:
             self.game.screen.blit(self.image1, (280, 41))
 
@@ -1290,7 +899,6 @@ class WinScreen:
             else:
                 if current_time - self.next_animation_time > self.animation_delay: # Adds delay between star animation and rest of UI display
                     self.stop_animation = True
-                    self.update_score()
 
     def buttons_clicked(self):
         if self.stop_animation:
@@ -1300,65 +908,12 @@ class WinScreen:
     def replay_button_clicked(self):
         self.reset()
 
-    def controls_button_clicked(self):
-        print('Controls button clicked.')
-
-class EndlessWinScreen(WinScreen):
-    def __init__(self, game):
-        super().__init__(game)
-        self.buttons = [
-            Button(self.game, SCREEN_WIDTH // 2, 421, 'replay_button.png', self.replay_button_clicked, 139, 139),
-            Button(self.game, 452, 421, 'home_button.png', self.home_button_clicked, 139, 139),
-            Button(self.game, 828, 421, 'controls_button.png', self.controls_button_clicked, 139, 139)
-        ]
-    
     def home_button_clicked(self):
         self.reset()
         self.game.state = self.game.play_mode
 
-    def update_score(self):
-        if self.game.state.elapsed_time < self.game.state.shortest_time: # Check high score for time
-            self.game.state.stats['shortest_time'][self.game.state.mode] = self.game.state.elapsed_time
-            self.game.state.shortest_time = self.game.state.stats['shortest_time'][self.game.state.mode]
-            with open(os.path.join(DATA_DIR, 'stats.json'), 'w') as f: # Update .json file if there is a change
-                json.dump(self.game.state.stats, f, indent = 4)
-        if self.game.state.star_rating == 3:
-            self.game.state.current_streak += 1 # Increment current streak
-            if self.game.state.current_streak > self.game.state.best_streak: # Check high score for streak
-                self.game.state.stats['best_streak'][self.game.state.mode] = self.game.state.current_streak
-                self.game.state.best_streak = self.game.state.stats['best_streak'][self.game.state.mode]
-                with open(os.path.join(DATA_DIR, 'stats.json'), 'w') as f: # Update .json file if there is a change
-                    json.dump(self.game.state.stats, f, indent = 4)
-        else:
-            self.game.state.current_streak = 0 # Streak broken
-
-
-class LevelsWinScreen(WinScreen):
-    def __init__(self, game):
-        super().__init__(game)
-        self.buttons = [
-            Button(self.game, 574, 421, 'replay_button.png', self.replay_button_clicked, 119, 119),
-            Button(self.game, 442, 421, 'home_button.png', self.home_button_clicked, 119, 119),
-            Button(self.game, 838, 421, 'controls_button.png', self.controls_button_clicked, 119, 119),
-            Button(self.game, 706, 421, 'continue_button.png', self.continue_button_clicked, 119, 119)
-        ]
-    
-    def home_button_clicked(self):
-        self.reset()
-        self.game.state.state = 'select'
-    
-    def continue_button_clicked(self):
-        if self.game.state.current_level['number'] == 45: # Quits to levels selector on last level
-            self.home_button_clicked()
-        else:
-            self.reset()
-            self.game.state.play_level(self.game.state.current_level['number'] + 1)
-    
-    def update_score(self):
-        if self.game.state.star_rating > self.game.state.levels[self.game.state.current_level['number'] - 1]['stars'][self.game.state.mode]: # Check high score for star rating
-            self.game.state.levels[self.game.state.current_level['number'] - 1]['stars'][self.state.mode] = self.game.state.star_rating
-            with open(os.path.join(DATA_DIR, 'levels.json'), 'w') as f: # Update .json file if there is a change
-                json.dump(self.game.state.levels, f, indent = 4)
+    def controls_button_clicked(self):
+        print('Controls button clicked.')
 
 class Dijkstra:
     def __init__(self, maze):
