@@ -426,10 +426,6 @@ class EndlessGameMode(GameMode):
             self.draw_star_rating()
 
     def update(self):
-        if self.game.play_mode.darkness_mode:
-            self.mode = 'darkness'
-        else:
-            self.mode = 'normal'
         if not self.game.win:
             self.player.update()
             self.update_star_rating()
@@ -614,10 +610,6 @@ class LevelsGameMode(GameMode):
                 self.draw_star_rating()
 
     def update(self):
-        if self.game.play_mode.darkness_mode:
-            self.mode = 'darkness'
-        else:
-            self.mode = 'normal'
         if not self.game.win and self.state == 'play':
             self.player.update()
             self.update_star_rating()
