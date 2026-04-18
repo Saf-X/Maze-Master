@@ -209,17 +209,19 @@ class PlayMode:
     def draw_UI_elements(self):
         draw_text( # Levels button text
             self.game.screen,
-            f'{self.game.levels_game_mode.levels_completed} / 45',
+            f'{self.game.levels_game_mode.get_levels_completed()} / 45',
             SCREEN_WIDTH // 2,
             426,
             self.UI_text_font,
             WHITE,
             'center'
         )
-        shortest_time = self.game.endless_game_mode.shortest_time
+        shortest_time = self.game.endless_game_mode.get_shortest_time()
         minutes = shortest_time // 60
         seconds = shortest_time % 60
         time = f'{minutes:01d} : {seconds:02d}' # Clock display MM : SS
+        if shortest_time >= 999999999: # Shows a blank time if a shortest time hasn't been set
+            time = '-- : --'
         draw_text( # Endless button text
             self.game.screen,
             time,
@@ -233,10 +235,6 @@ class PlayMode:
 class GameMode: # Parent Class
     def __init__(self, game):
         self.game = game
-        if self.game.play_mode.darkness_mode:
-            self.mode = 'darkness'
-        else:
-            self.mode = 'normal'
         self.image = load_image('blank.png')
         self.buttons = [
             Button(self.game, 50, 50, 'pause_button.png', self.pause_button_clicked, 72, 72)
@@ -273,7 +271,13 @@ class GameMode: # Parent Class
         self.three_star_image = pg.transform.smoothscale(load_image('3 star.png'), (153, 51))
         self.three_star_rect = self.three_star_image.get_rect()
         self.star_rating = 3
-        self.speed_constant = 6.02 # Solving speed to acheive 3/3 stars      
+        self.speed_constant = 6.02 # Solving speed to acheive 3/3 stars
+
+    def get_mode(self):
+        if self.game.play_mode.darkness_mode:
+            return 'darkness'
+        else:
+            return 'normal'      
 
     def pause_button_clicked(self):
         self.game.is_paused = True
@@ -377,16 +381,15 @@ class GameMode: # Parent Class
         pixel_y = int(self.player.px[1] - self.maze.start_y) # Relative y-coord of darkness overlay surface
         radius = int(self.maze.cell_size * 2.5) # Give a 5 cell thick diameter
         pg.draw.circle(self.darkness_mode_overlay, (0, 0, 0, 0), (pixel_x, pixel_y), radius) # Draws transparent circle as a hole
-        self.game.screen.blit(self.darkness_mode_overlay, self.maze_surface_pos) 
+        self.game.screen.blit(self.darkness_mode_overlay, self.maze_surface_pos)
+        self.maze.draw_border(self.game.screen) 
         
 class EndlessGameMode(GameMode):
     def __init__(self, game):
         super().__init__(game)
         with open(os.path.join(DATA_DIR, 'stats.json'), 'r') as f:
             self.stats = json.load(f) # Stats dictionary
-        self.shortest_time = self.stats['shortest_time'][self.mode]
         self.current_streak = 0
-        self.best_streak = self.stats['best_streak'][self.mode]
         self.maze_width = 20
         self.maze_height = 20
         self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
@@ -397,6 +400,12 @@ class EndlessGameMode(GameMode):
         self.title = 'Endless'
         self.title_colour = PINK
         self.path = self.maze.run_dijkstra(self.start_node_pos, self.goal_node_pos)
+
+    def get_shortest_time(self):
+        return self.stats['shortest_time'][self.get_mode()]
+
+    def get_best_streak(self):
+        return self.stats['best_streak'][self.get_mode()]
 
     def draw(self):
         self.game.screen.blit(self.image,(0,0))
@@ -476,7 +485,7 @@ class EndlessGameMode(GameMode):
         )
         draw_text(
             self.game.screen,
-            str(self.best_streak),
+            str(self.get_best_streak()),
             (SCREEN_WIDTH - self.maze_surface_pos[0] - self.maze_surface_width) // 2,
             410,
             self.UI_text_font,
@@ -490,12 +499,6 @@ class LevelsGameMode(GameMode):
         with open(os.path.join(DATA_DIR, 'levels.json'), 'r') as f:
             self.levels = json.load(f) # Levels dictionary
         self.current_level = self.levels[0]
-        self.levels_completed = 0
-        self.stars_collected = 0
-        for level in self.levels:
-            self.stars_collected += level['stars'][self.mode]
-            if level['stars'][self.mode] > 0:
-                self.levels_completed += 1
         self.maze_width = len(self.current_level['maze'])
         self.maze_height = len(self.current_level['maze'][0])
         self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height, self.current_level['maze'])
@@ -538,6 +541,19 @@ class LevelsGameMode(GameMode):
                 image = 'hard_icon.png'
             self.levels_icons.append(Button(self.game, x, y, [image, 'dark_icon.png'], self.play_level, 182, 182, i + 1))
         self.play_buttons = self.buttons # Taken from parent class and also used for endless game mode
+
+    def get_levels_completed(self):
+        levels_completed = 0
+        for level in self.levels:
+            if level['stars'][self.get_mode()] > 0:
+                levels_completed += 1
+        return levels_completed
+    
+    def get_stars_collected(self):
+        stars_collected = 0
+        for level in self.levels:
+            stars_collected += level['stars'][self.get_mode()]
+        return stars_collected
 
     def draw(self):
         self.game.screen.blit(self.image, (0, 0))
@@ -685,7 +701,7 @@ class LevelsGameMode(GameMode):
                 WHITE,
                 'center'
             )
-            match self.levels[i]['stars'][self.mode]:
+            match self.levels[i]['stars'][self.get_mode()]:
                 case 0:
                     star_rating_image = self.zero_star_image
                     star_rating_rect = self.zero_star_rect
@@ -764,7 +780,7 @@ class LevelsGameMode(GameMode):
     def draw_stars_collected(self):
         draw_text(
             self.game.screen,
-            f'{self.stars_collected} / 135',
+            f'{self.get_stars_collected()} / 135',
             SCREEN_WIDTH - 100,
             8,
             self.stars_collected_font,
@@ -908,35 +924,7 @@ class Maze:
 
     def draw(self, screen, wall_colour = WHITE):
         wall_thickness = max(self.cell_size // 12, 1) # Cell size : Wall thickenss ratio - minimum 1px
-        # Draw border
-        top_border = pg.Rect(
-            self.start_x - wall_thickness,
-            self.start_y - wall_thickness,
-            self.cell_size * self.width + 2 * wall_thickness,
-            wall_thickness
-        )
-        pg.draw.rect(screen, wall_colour, top_border)
-        bottom_border = pg.Rect(
-            self.start_x - wall_thickness,
-            self.start_y + self.cell_size * self.height,
-            self.cell_size * self.width + 2 * wall_thickness,
-            wall_thickness
-        )
-        pg.draw.rect(screen, wall_colour, bottom_border)
-        left_border = pg.Rect(
-            self.start_x - wall_thickness,
-            self.start_y - wall_thickness,
-            wall_thickness,
-            self.cell_size * self.height + 2 * wall_thickness
-        )
-        pg.draw.rect(screen, wall_colour, left_border)
-        right_border = pg.Rect(
-            self.start_x + self.cell_size * self.width,
-            self.start_y - wall_thickness,
-            wall_thickness,
-            self.cell_size * self.height + 2 * wall_thickness
-        )
-        pg.draw.rect(screen, wall_colour, right_border)
+        self.draw_border(screen, wall_colour)
         # Draw cells
         for x in range(self.width):
             for y in range(self.height):
@@ -959,6 +947,38 @@ class Maze:
                 if cell.walls['right'] == True:
                     right = pg.Rect(x_pos + self.cell_size - wall_thickness, y_pos - wall_thickness, wall_thickness, self.cell_size + 2 * wall_thickness)
                     pg.draw.rect(screen, wall_colour, right)
+
+    def draw_border(self, screen, wall_colour = WHITE):
+        wall_thickness = max(self.cell_size // 12, 1) # Cell size : Wall thickenss ratio - minimum 1px
+        # Draw border
+        top_border = pg.Rect(
+            self.start_x - wall_thickness,
+            self.start_y - wall_thickness,
+            self.cell_size * self.width + 2 * wall_thickness,
+            wall_thickness * 2
+        )
+        pg.draw.rect(screen, wall_colour, top_border)
+        bottom_border = pg.Rect(
+            self.start_x - wall_thickness,
+            self.start_y + self.cell_size * self.height,
+            self.cell_size * self.width + 2 * wall_thickness,
+            wall_thickness * 2
+        )
+        pg.draw.rect(screen, wall_colour, bottom_border)
+        left_border = pg.Rect(
+            self.start_x - wall_thickness,
+            self.start_y - wall_thickness,
+            wall_thickness * 2,
+            self.cell_size * self.height + 2 * wall_thickness
+        )
+        pg.draw.rect(screen, wall_colour, left_border)
+        right_border = pg.Rect(
+            self.start_x + self.cell_size * self.width,
+            self.start_y - wall_thickness,
+            wall_thickness * 2,
+            self.cell_size * self.height + 2 * wall_thickness
+        )
+        pg.draw.rect(screen, wall_colour, right_border)
 
     def pos_to_px(self, pos):
         return [self.start_x + (pos[0] + 0.5) * self.cell_size, self.start_y + (pos[1] + 0.5) * self.cell_size]
@@ -1317,16 +1337,14 @@ class EndlessWinScreen(WinScreen):
         self.game.state = self.game.play_mode
 
     def update_score(self):
-        if self.game.state.elapsed_time < self.game.state.shortest_time: # Check high score for time
-            self.game.state.stats['shortest_time'][self.game.state.mode] = self.game.state.elapsed_time
-            self.game.state.shortest_time = self.game.state.stats['shortest_time'][self.game.state.mode]
+        if self.game.state.elapsed_time < self.game.state.get_shortest_time(): # Check high score for time
+            self.game.state.stats['shortest_time'][self.game.state.get_mode()] = self.game.state.elapsed_time
             with open(os.path.join(DATA_DIR, 'stats.json'), 'w') as f: # Update .json file if there is a change
                 json.dump(self.game.state.stats, f, indent = 4)
         if self.game.state.star_rating == 3:
             self.game.state.current_streak += 1 # Increment current streak
-            if self.game.state.current_streak > self.game.state.best_streak: # Check high score for streak
-                self.game.state.stats['best_streak'][self.game.state.mode] = self.game.state.current_streak
-                self.game.state.best_streak = self.game.state.stats['best_streak'][self.game.state.mode]
+            if self.game.state.current_streak > self.game.state.get_best_streak(): # Check high score for streak
+                self.game.state.stats['best_streak'][self.game.state.get_mode()] = self.game.state.current_streak
                 with open(os.path.join(DATA_DIR, 'stats.json'), 'w') as f: # Update .json file if there is a change
                     json.dump(self.game.state.stats, f, indent = 4)
         else:
@@ -1355,8 +1373,8 @@ class LevelsWinScreen(WinScreen):
             self.game.state.play_level(self.game.state.current_level['number'] + 1)
     
     def update_score(self):
-        if self.game.state.star_rating > self.game.state.levels[self.game.state.current_level['number'] - 1]['stars'][self.game.state.mode]: # Check high score for star rating
-            self.game.state.levels[self.game.state.current_level['number'] - 1]['stars'][self.state.mode] = self.game.state.star_rating
+        if self.game.state.star_rating > self.game.state.levels[self.game.state.current_level['number'] - 1]['stars'][self.game.state.get_mode()]: # Check high score for star rating
+            self.game.state.levels[self.game.state.current_level['number'] - 1]['stars'][self.game.state.get_mode()] = self.game.state.star_rating
             with open(os.path.join(DATA_DIR, 'levels.json'), 'w') as f: # Update .json file if there is a change
                 json.dump(self.game.state.levels, f, indent = 4)
 

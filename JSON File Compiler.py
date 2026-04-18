@@ -377,15 +377,16 @@ class LevelsGameMode(GameMode):
         # with open(os.path.join(DATA_DIR, 'levels.json'), 'w') as f: # Saves to the data file directory
         #     json.dump(self.levels, f, indent = 4)
 
-        with open(os.path.join(DATA_DIR, 'levels.json'), 'r') as f:
-            self.levels = json.load(f) # Levels dictionary
-        
-        for level in self.levels:
-            normal_score = level["stars"]
-            level["stars"] = {"normal": normal_score, "darkness": 0}
 
-        with open(os.path.join(DATA_DIR, 'levels.json'), 'w') as f:
-            json.dump(self.levels, f, indent = 4)
+        # with open(os.path.join(DATA_DIR, 'levels.json'), 'r') as f:
+        #     self.levels = json.load(f) # Levels dictionary
+        
+        # for level in self.levels:
+        #     normal_score = level["stars"]
+        #     level["stars"] = {"normal": normal_score, "darkness": 0}
+
+        # with open(os.path.join(DATA_DIR, 'levels.json'), 'w') as f:
+        #     json.dump(self.levels, f, indent = 4)
 
         
 
