@@ -1,10 +1,10 @@
 {
     "shortest_time": {
         "normal": 13,
-        "darkness": 32
+        "darkness": 24
     },
     "best_streak": {
         "normal": 2,
-        "darkness": 0
+        "darkness": 1
     }
 }

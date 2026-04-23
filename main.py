@@ -68,6 +68,7 @@ class Game:
         self.clock = pg.time.Clock()
         self.is_running = True
         self.title_screen = TitleScreen(self)
+        self.education_mode = EducationMode(self)
         self.play_mode = PlayMode(self)
         self.levels_game_mode = LevelsGameMode(self)
         self.endless_game_mode = EndlessGameMode(self)
@@ -151,7 +152,7 @@ class TitleScreen:
         self.game.state = self.game.play_mode
 
     def education_button_clicked(self):
-        print('Education button clicked.')
+        self.game.state = self.game.education_mode
 
 class PlayMode:
     def __init__(self, game):
@@ -914,7 +915,7 @@ class Maze:
             else:
                 self.stack.pop()
 
-    def draw(self, screen, wall_colour = WHITE):
+    def draw(self, screen, pathfinding_algorithm = None, wall_colour = WHITE):
         wall_thickness = max(self.cell_size // 12, 1) # Cell size : Wall thickenss ratio - minimum 1px
         self.draw_border(screen, wall_colour)
         # Draw cells
@@ -923,7 +924,23 @@ class Maze:
                 cell = self.array[x][y]
                 x_pos = self.start_x + x * self.cell_size
                 y_pos = self.start_y + y * self.cell_size
+                cell_rect = pg.Rect(x_pos, y_pos, self.cell_size, self.cell_size)
 
+                # Draw colour shadings for pathfinding algorithm visualiser
+                if pathfinding_algorithm:
+                    if cell == pathfinding_algorithm.current_node:
+                        colour = RED # Represents current node
+                    elif cell in pathfinding_algorithm.open_set:
+                        colour = PINK # Represents queued node
+                    elif cell.is_path_visited:
+                        colour = GREEN # Represents visited node
+                    else:
+                        colour = None
+                    if colour:
+                        pg.draw.rect(screen, colour, cell_rect)
+
+
+                # Draw cell walls
                 if cell.walls['top'] == True:
                     top = pg.Rect(x_pos - wall_thickness, y_pos, self.cell_size + 2 * wall_thickness, wall_thickness)
                     pg.draw.rect(screen, wall_colour, top)
@@ -1024,6 +1041,14 @@ class Maze:
         start_node = self.array[start_node_pos[0]][start_node_pos[1]]
         goal_node = self.array[goal_node_pos[0]][goal_node_pos[1]]
         return Dijkstra(self).run(start_node, goal_node)
+    
+    def setup_dijkstra(self, start_node_pos, goal_node_pos):
+        start_node = self.array[start_node_pos[0]][start_node_pos[1]]
+        goal_node = self.array[goal_node_pos[0]][goal_node_pos[1]]
+        dijkstra = Dijkstra(self)
+        dijkstra.setup(start_node, goal_node)
+        return dijkstra
+
 
 
     
@@ -1373,6 +1398,9 @@ class LevelsWinScreen(WinScreen):
 class Dijkstra:
     def __init__(self, maze):
         self.maze = maze
+        self.current_node = None
+        self.open_set = None
+        self.stop_animation = False
 
     def reset_nodes(self): # Resets all nodes' pathfinding attributes
         for column in self.maze.array:
@@ -1418,8 +1446,93 @@ class Dijkstra:
                         neighbouring_nodes[i].distance = new_distance
                         neighbouring_nodes[i].previous_node = current_node
                         open_set.append(neighbouring_nodes[i])
-            
 
+    def setup(self, start_node, goal_node):
+        self.reset_nodes()
+        self.start_node = start_node
+        self.goal_node = goal_node
+        self.start_node.distance = 0
+        self.open_set = []
+        self.open_set.append(self.start_node)
+
+    
+    def run_frame(self):
+        if self.open_set:
+            self.closest_node = self.open_set[0]
+            index = 0
+            for i in range(len(self.open_set)): # Finds the closest node in the open set
+                if self.open_set[i].distance < self.closest_node.distance:
+                    self.closest_node = self.open_set[i]
+                    index = i
+            
+            self.current_node = self.open_set.pop(index)
+            self.current_node.is_path_visited = True
+
+            if self.current_node == self.goal_node:
+                self.stop_animation = True
+                return self.retrace(self.goal_node)
+            
+            self.neighbouring_nodes = self.maze.get_reachable_neighbours(self.current_node)
+            for i in range(len(self.neighbouring_nodes)): # Find an unvisited neighbouring node
+                if not self.neighbouring_nodes[i].is_path_visited:
+                    new_distance = self.current_node.distance + 1 # Distance from start increases by 1 each square
+                    if new_distance < self.neighbouring_nodes[i].distance: # Updates the nodes' distance from start
+                        self.neighbouring_nodes[i].distance = new_distance
+                        self.neighbouring_nodes[i].previous_node = self.current_node
+                        self.open_set.append(self.neighbouring_nodes[i])
+
+    def run_animation(self):
+        if not self.stop_animation:
+            self.run_frame()
+
+
+
+        
+
+            
+class EducationMode:
+    def __init__(self, game):
+        self.game = game
+        self.image = load_image('blank.png')
+        self.buttons = [
+            Button(self.game, 56, 670, 'back_button.png', self.back_button_clicked, 81, 72),
+            Button(self.game, 1230, 670, 'settings_button.png', self.settings_button_clicked, 72, 72),
+        ]
+        self.start_node_pos = (0, 0)
+        self.maze_surface_pos = (353, 101)
+        self.maze_surface_width = 575
+        self.maze_surface_height = 575
+        self.maze_width = 20
+        self.maze_height = 20
+        self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
+        self.goal_node_pos = (self.maze_width - 1, self.maze_height - 1)
+        self.goal_node_image = pg.transform.smoothscale(load_image('goal_node.png'), (self.maze.cell_size, self.maze.cell_size))
+        self.goal_node_rect = self.goal_node_image.get_rect()
+        self.dijkstra = self.maze.setup_dijkstra(self.start_node_pos, self.goal_node_pos)
+    
+    def draw(self):
+        self.game.screen.blit(self.image,(0,0))
+        for button in self.buttons:
+            button.draw()
+        self.maze.draw(self.game.screen, self.dijkstra)
+        self.draw_goal_node()
+
+    def update(self):
+        self.dijkstra.run_animation()
+
+    def buttons_clicked(self):
+        for button in self.buttons:
+            button.clicked()
+
+    def back_button_clicked(self):
+        self.game.state = self.game.title_screen
+
+    def settings_button_clicked(self):
+        print('Settings button clicked.')
+
+    def draw_goal_node(self):
+        self.goal_node_rect.center = self.maze.pos_to_px(self.goal_node_pos)
+        self.game.screen.blit(self.goal_node_image, self.goal_node_rect)
 
 
 
