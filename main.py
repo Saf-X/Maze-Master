@@ -926,9 +926,13 @@ class Maze:
                 y_pos = self.start_y + y * self.cell_size
                 cell_rect = pg.Rect(x_pos, y_pos, self.cell_size, self.cell_size)
 
-                # Draw colour shadings for pathfinding algorithm visualiser
+                # Draw colour coding for pathfinding algorithm visualiser
                 if pathfinding_algorithm:
-                    if cell == pathfinding_algorithm.current_node:
+                    if cell == pathfinding_algorithm.start_node:
+                        colour = CYAN # Represents start node
+                    elif cell == pathfinding_algorithm.goal_node:
+                        colour = GOLD # Represents goal node
+                    elif cell == pathfinding_algorithm.current_node:
                         colour = RED # Represents current node
                     elif cell in pathfinding_algorithm.open_set:
                         colour = PINK # Represents queued node
@@ -1485,11 +1489,6 @@ class Dijkstra:
         if not self.stop_animation:
             self.run_frame()
 
-
-
-        
-
-            
 class EducationMode:
     def __init__(self, game):
         self.game = game
@@ -1506,8 +1505,6 @@ class EducationMode:
         self.maze_height = 20
         self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
         self.goal_node_pos = (self.maze_width - 1, self.maze_height - 1)
-        self.goal_node_image = pg.transform.smoothscale(load_image('goal_node.png'), (self.maze.cell_size, self.maze.cell_size))
-        self.goal_node_rect = self.goal_node_image.get_rect()
         self.dijkstra = self.maze.setup_dijkstra(self.start_node_pos, self.goal_node_pos)
     
     def draw(self):
@@ -1515,7 +1512,6 @@ class EducationMode:
         for button in self.buttons:
             button.draw()
         self.maze.draw(self.game.screen, self.dijkstra)
-        self.draw_goal_node()
 
     def update(self):
         self.dijkstra.run_animation()
@@ -1529,11 +1525,6 @@ class EducationMode:
 
     def settings_button_clicked(self):
         print('Settings button clicked.')
-
-    def draw_goal_node(self):
-        self.goal_node_rect.center = self.maze.pos_to_px(self.goal_node_pos)
-        self.game.screen.blit(self.goal_node_image, self.goal_node_rect)
-
 
 
             
