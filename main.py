@@ -15,6 +15,7 @@ FPS = 60
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 GREEN = (7, 168, 18)
+DARK_GREEN = (0, 100, 0)
 SPRING_GREEN = (71, 212, 90)
 ORANGE = (255, 192, 0)
 LIGHT_ORANGE = (255, 204, 153)
@@ -915,23 +916,24 @@ class Maze:
             else:
                 self.stack.pop()
 
-    def draw(self, screen, pathfinding_algorithm = None, wall_colour = WHITE):
+    def draw(self, screen, pathfinding_algorithm = None, path = None, path_pointer = None, wall_colour = WHITE):
         wall_thickness = max(self.cell_size // 12, 1) # Cell size : Wall thickenss ratio - minimum 1px
-        self.draw_border(screen, wall_colour)
-        # Draw cells
-        for x in range(self.width):
-            for y in range(self.height):
-                cell = self.array[x][y]
-                x_pos = self.start_x + x * self.cell_size
-                y_pos = self.start_y + y * self.cell_size
-                cell_rect = pg.Rect(x_pos, y_pos, self.cell_size, self.cell_size)
 
-                # Draw colour coding for pathfinding algorithm visualiser
-                if pathfinding_algorithm:
+        # Draw colour coding for pathfinding algorithm visualiser
+        if pathfinding_algorithm:
+            for x in range(self.width):
+                for y in range(self.height):
+                    cell = self.array[x][y]
+                    x_pos = self.start_x + x * self.cell_size
+                    y_pos = self.start_y + y * self.cell_size
+                    cell_rect = pg.Rect(x_pos, y_pos, self.cell_size, self.cell_size)
+
                     if cell == pathfinding_algorithm.start_node:
                         colour = CYAN # Represents start node
                     elif cell == pathfinding_algorithm.goal_node:
                         colour = GOLD # Represents goal node
+                    elif path and cell in path[:path_pointer + 1]:
+                        colour = DARK_GREEN # Represents path node if exists
                     elif cell == pathfinding_algorithm.current_node:
                         colour = RED # Represents current node
                     elif cell in pathfinding_algorithm.open_set:
@@ -943,8 +945,13 @@ class Maze:
                     if colour:
                         pg.draw.rect(screen, colour, cell_rect)
 
+        # Draw cell walls
+        for x in range(self.width):
+            for y in range(self.height):
+                cell = self.array[x][y]
+                x_pos = self.start_x + x * self.cell_size
+                y_pos = self.start_y + y * self.cell_size
 
-                # Draw cell walls
                 if cell.walls['top'] == True:
                     top = pg.Rect(x_pos - wall_thickness, y_pos, self.cell_size + 2 * wall_thickness, wall_thickness)
                     pg.draw.rect(screen, wall_colour, top)
@@ -960,6 +967,9 @@ class Maze:
                 if cell.walls['right'] == True:
                     right = pg.Rect(x_pos + self.cell_size - wall_thickness, y_pos - wall_thickness, wall_thickness, self.cell_size + 2 * wall_thickness)
                     pg.draw.rect(screen, wall_colour, right)
+        
+        # Draw border
+        self.draw_border(screen, wall_colour)
 
     def draw_border(self, screen, wall_colour = WHITE):
         wall_thickness = max(self.cell_size // 12, 1) # Cell size : Wall thickenss ratio - minimum 1px
@@ -973,7 +983,7 @@ class Maze:
         pg.draw.rect(screen, wall_colour, top_border)
         bottom_border = pg.Rect(
             self.start_x - wall_thickness,
-            self.start_y + self.cell_size * self.height,
+            self.start_y + self.cell_size * self.height - wall_thickness,
             self.cell_size * self.width + 2 * wall_thickness,
             wall_thickness * 2
         )
@@ -986,7 +996,7 @@ class Maze:
         )
         pg.draw.rect(screen, wall_colour, left_border)
         right_border = pg.Rect(
-            self.start_x + self.cell_size * self.width,
+            self.start_x + self.cell_size * self.width - wall_thickness,
             self.start_y - wall_thickness,
             wall_thickness * 2,
             self.cell_size * self.height + 2 * wall_thickness
@@ -1404,7 +1414,6 @@ class Dijkstra:
         self.maze = maze
         self.current_node = None
         self.open_set = None
-        self.stop_animation = False
 
     def reset_nodes(self): # Resets all nodes' pathfinding attributes
         for column in self.maze.array:
@@ -1473,8 +1482,7 @@ class Dijkstra:
             self.current_node.is_path_visited = True
 
             if self.current_node == self.goal_node:
-                self.stop_animation = True
-                return self.retrace(self.goal_node)
+                return self.retrace(self.goal_node) # Returns the path nodes list if goal node is found
             
             self.neighbouring_nodes = self.maze.get_reachable_neighbours(self.current_node)
             for i in range(len(self.neighbouring_nodes)): # Find an unvisited neighbouring node
@@ -1484,10 +1492,10 @@ class Dijkstra:
                         self.neighbouring_nodes[i].distance = new_distance
                         self.neighbouring_nodes[i].previous_node = self.current_node
                         self.open_set.append(self.neighbouring_nodes[i])
-
-    def run_animation(self):
-        if not self.stop_animation:
-            self.run_frame()
+            
+            return False # Returns False if search needs to carry on
+        else:
+            return True # Returns True if search is finished
 
 class EducationMode:
     def __init__(self, game):
@@ -1496,35 +1504,201 @@ class EducationMode:
         self.buttons = [
             Button(self.game, 56, 670, 'back_button.png', self.back_button_clicked, 81, 72),
             Button(self.game, 1230, 670, 'settings_button.png', self.settings_button_clicked, 72, 72),
+            Button(self.game, SCREEN_WIDTH // 2 - 89, 682, 'slow_down_button.png', self.slow_down_button_clicked, 59, 59),
+            Button(self.game, SCREEN_WIDTH // 2 + 89, 682, 'speed_up_button.png', self.speed_up_button_clicked, 59, 59),
+            Button(self.game, SCREEN_WIDTH // 2, 682, 'play_button2.png', self.play_button_clicked, 59, 59),
+            Button(self.game, SCREEN_WIDTH // 2, 682, 'pause_button.png', self.pause_button_clicked, 59, 59),
+            Button(self.game, SCREEN_WIDTH // 2, 682, 'replay_button.png', self.replay_button_clicked, 59, 59),
+            Button(self.game, 1222, 395, 'down_button.png', self.show_stats_button_clicked, 55, 55),
+            Button(self.game, 1222, 395, 'up_button.png', self.hide_stats_button_clicked, 55, 55)
         ]
         self.start_node_pos = (0, 0)
-        self.maze_surface_pos = (353, 101)
+        self.maze_surface_pos = (353, 73)
         self.maze_surface_width = 575
         self.maze_surface_height = 575
-        self.maze_width = 20
-        self.maze_height = 20
+        self.maze_width = 100
+        self.maze_height = 100
         self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
         self.goal_node_pos = (self.maze_width - 1, self.maze_height - 1)
         self.dijkstra = self.maze.setup_dijkstra(self.start_node_pos, self.goal_node_pos)
-    
+        self.astar = None
+        self.current_algorithm = self.dijkstra
+        self.next_animation_time = 0
+        self.animation_delay = 50 # ms between each animation frame
+        self.stop_animation = False
+        self.stop_path_animation = False
+        self.is_paused = True
+        self.path = None
+        self.path_pointer = 0
+        self.visited_nodes = 0
+        self.queued_nodes = 0
+        self.path_length = 0
+        self.show_stats = False
+        self.show_info = False
+        self.UI_label_font = pg.font.Font(MONTSERRAT_BOLD, 26)
+        self.UI_text_font1 = pg.font.Font(MONTSERRAT_REG, 26)
+        self.UI_text_font2 = pg.font.Font(MONTSERRAT_REG, 16)
+        self.horizontal_line1 = pg.Rect(970, 168, 265, 2)
+        self.horizontal_line2 = pg.Rect(970, 416, 265, 2)
+        self.visited_nodes_rect = pg.Rect(988, 436, 9, 9)
+        self.queued_nodes_rect = pg.Rect(988, 476, 9, 9)
+        self.path_length_rect = pg.Rect(988, 516, 9, 9)
+
     def draw(self):
         self.game.screen.blit(self.image,(0,0))
-        for button in self.buttons:
+        for button in self.buttons[:-5]:
             button.draw()
-        self.maze.draw(self.game.screen, self.dijkstra)
+        self.maze.draw(self.game.screen, self.current_algorithm, self.path, self.path_pointer)
+        self.draw_stats()
+
+        if self.show_stats:
+            self.buttons[-1].draw() # Draw hide stats button
+        else:
+            self.buttons[-2].draw() # Draw show stats button
+
+        if self.stop_path_animation:
+            self.buttons[-3].draw() # Draw replay button
+        elif self.is_paused:
+            self.buttons[-5].draw() # Draw play button
+        else:
+            self.buttons[-4].draw() # Draw pause button
 
     def update(self):
-        self.dijkstra.run_animation()
+        self.run_animation()
+        self.visited_nodes = 0
+        for x in range(self.maze.width): # Computes no. nodes visited
+            for y in range(self.maze.height):
+                if self.maze.array[x][y].is_path_visited:
+                    self.visited_nodes += 1
+        self.queued_nodes = len(self.current_algorithm.open_set)
+        if self.path:
+            self.path_length = len(self.path[:self.path_pointer + 1])
+
+    def reset(self):
+        pass
 
     def buttons_clicked(self):
-        for button in self.buttons:
+        for button in self.buttons[:-5]:
             button.clicked()
+
+        if self.show_stats:
+            self.buttons[-1].clicked() # Hide stats button clicked
+        else:
+            self.buttons[-2].clicked() # Show stats button clicked
+
+        if self.stop_path_animation:
+            self.buttons[-3].clicked() # Replay button clicked
+        elif self.is_paused:
+            self.buttons[-5].clicked() # Play button clicked
+        else:
+            self.buttons[-4].clicked() # Pause button clicked
 
     def back_button_clicked(self):
         self.game.state = self.game.title_screen
 
     def settings_button_clicked(self):
         print('Settings button clicked.')
+
+    def show_stats_button_clicked(self):
+        self.show_stats = True
+
+    def hide_stats_button_clicked(self):
+        self.show_stats = False
+
+    def play_button_clicked(self):
+        self.is_paused = False
+
+    def pause_button_clicked(self):
+        self.is_paused = True
+
+    def replay_button_clicked(self):
+        self.dijkstra = self.maze.setup_dijkstra(self.start_node_pos, self.goal_node_pos)
+        self.current_algorithm = self.dijkstra
+        self.stop_animation = False
+        self.stop_path_animation = False
+        self.is_paused = False
+        self.path = None
+        self.path_pointer = 0
+        self.visited_nodes = 0
+        self.queued_nodes = 0
+        self.path_length = 0
+
+    def slow_down_button_clicked(self):
+        self.animation_delay = min(500, self.animation_delay + 50)
+
+    def speed_up_button_clicked(self):
+        self.animation_delay = max(0, self.animation_delay - 50)
+
+    def run_animation(self):
+        if not self.is_paused:
+            if not self.stop_animation:
+                current_time = pg.time.get_ticks()
+                if current_time - self.next_animation_time > self.animation_delay:
+                    output = self.current_algorithm.run_frame()
+                    self.next_animation_time = current_time
+                    if isinstance(output, list):
+                        self.stop_animation = True
+                        self.path = output
+                    else:
+                        self.stop_animation = output
+
+            elif not self.stop_path_animation and self.path:
+                current_time = pg.time.get_ticks()
+                if current_time - self.next_animation_time > self.animation_delay:
+                    if self.path_pointer < len(self.path) - 1:
+                        self.path_pointer += 1
+                        self.next_animation_time = current_time
+                    else:
+                        self.stop_path_animation = True
+
+    def draw_stats(self):
+        draw_text( # Stats title
+            self.game.screen,
+            'Stats:',
+            (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2,
+            395,
+            self.UI_label_font,
+            WHITE,
+            'center'
+        )
+        pg.draw.rect(self.game.screen, WHITE, self.horizontal_line2)
+        if self.show_stats:
+            draw_text( # Visited nodes stat
+                self.game.screen,
+                f'Visited nodes: {self.visited_nodes}',
+                (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2 - 98,
+                431,
+                self.UI_text_font2,
+                WHITE,
+                'topleft'
+            )
+            draw_text( # Queued nodes stat
+                self.game.screen,
+                f'Queued nodes: {self.queued_nodes}',
+                (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2 - 98,
+                471,
+                self.UI_text_font2,
+                WHITE,
+                'topleft'
+            )
+            draw_text( # Shortest path length stat
+                self.game.screen,
+                f'Shortest path length: {self.path_length}',
+                (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2 - 98,
+                511,
+                self.UI_text_font2,
+                WHITE,
+                'topleft'
+            )
+            # Legend
+            pg.draw.rect(self.game.screen, GREEN, self.visited_nodes_rect)
+            pg.draw.rect(self.game.screen, PINK, self.queued_nodes_rect)
+            pg.draw.rect(self.game.screen, DARK_GREEN, self.path_length_rect)
+
+
+
+
+
 
 
             
