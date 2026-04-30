@@ -1063,6 +1063,13 @@ class Maze:
         dijkstra.setup(start_node, goal_node)
         return dijkstra
 
+    def setup_astar(self, start_node_pos, goal_node_pos):
+        start_node = self.array[start_node_pos[0]][start_node_pos[1]]
+        goal_node = self.array[goal_node_pos[0]][goal_node_pos[1]]
+        astar = AStar(self)
+        astar.setup(start_node, goal_node)
+        return astar
+
 
 
     
@@ -1497,6 +1504,67 @@ class Dijkstra:
         else:
             return True # Returns True if search is finished
 
+class AStar:
+    def __init__(self, maze):
+        self.maze = maze
+        self.current_node = None
+        self.open_set = None
+
+    def get_heuristic(self, node):
+        return abs(node.x - self.goal_node.x) + abs(node.y - self.goal_node.y) # Returns the manhattan distance as the heuristic value
+
+    def reset_nodes(self): # Resets all nodes' pathfinding attributes
+        for column in self.maze.array:
+            for node in column:
+                node.is_path_visited = False
+                node.distance = float('inf') # Set to infinity
+                node.previous_node = None
+                node.heuristic = self.get_heuristic(node)
+
+    def retrace(self, goal_node): # Outputs the path of nodes from goal node to start node
+        current_node = goal_node
+        path = [goal_node]
+        while current_node.previous_node:
+            current_node = current_node.previous_node
+            path.append(current_node)
+        return path
+
+    def setup(self, start_node, goal_node):
+        self.start_node = start_node
+        self.goal_node = goal_node
+        self.reset_nodes()
+        self.start_node.distance = 0
+        self.open_set = []
+        self.open_set.append(self.start_node)
+    
+    def run_frame(self):
+        if self.open_set:
+            self.closest_node = self.open_set[0]
+            index = 0
+            for i in range(len(self.open_set)): # Finds the closest node in the open set
+                if self.open_set[i].distance + self.open_set[i].heuristic < self.closest_node.distance + self.closest_node.heuristic:
+                    self.closest_node = self.open_set[i]
+                    index = i
+            
+            self.current_node = self.open_set.pop(index)
+            self.current_node.is_path_visited = True
+
+            if self.current_node == self.goal_node:
+                return self.retrace(self.goal_node) # Returns the path nodes list if goal node is found
+            
+            self.neighbouring_nodes = self.maze.get_reachable_neighbours(self.current_node)
+            for i in range(len(self.neighbouring_nodes)): # Find an unvisited neighbouring node
+                if not self.neighbouring_nodes[i].is_path_visited:
+                    new_distance = self.current_node.distance + 1 # Distance from start increases by 1 each square
+                    if new_distance < self.neighbouring_nodes[i].distance: # Updates the nodes' distance from start
+                        self.neighbouring_nodes[i].distance = new_distance
+                        self.neighbouring_nodes[i].previous_node = self.current_node
+                        self.open_set.append(self.neighbouring_nodes[i])
+            
+            return False # Returns False if search needs to carry on
+        else:
+            return True # Returns True if search is finished
+
 class EducationMode:
     def __init__(self, game):
         self.game = game
@@ -1506,22 +1574,30 @@ class EducationMode:
             Button(self.game, 1230, 670, 'settings_button.png', self.settings_button_clicked, 72, 72),
             Button(self.game, SCREEN_WIDTH // 2 - 89, 682, 'slow_down_button.png', self.slow_down_button_clicked, 59, 59),
             Button(self.game, SCREEN_WIDTH // 2 + 89, 682, 'speed_up_button.png', self.speed_up_button_clicked, 59, 59),
+            Button(self.game, 146, 204, 'minus_button.png', self.decrement_width, 37, 37),
+            Button(self.game, 216, 204, 'plus_button.png', self.increment_width, 37, 37),
+            Button(self.game, 146, 354, 'minus_button.png', self.decrement_height, 37, 37),
+            Button(self.game, 216, 354, 'plus_button.png', self.increment_height, 37, 37),
+            Button(self.game, 906, 55, 'refresh_button.png', self.refresh_button_clicked, 30, 30),
+            Button(self.game, 100, 507, 'previous_button.png', self.previous_button_clicked, 55, 55),
+            Button(self.game, 262, 507, 'next_button.png', self.next_button_clicked, 55, 55),
             Button(self.game, SCREEN_WIDTH // 2, 682, 'play_button2.png', self.play_button_clicked, 59, 59),
             Button(self.game, SCREEN_WIDTH // 2, 682, 'pause_button.png', self.pause_button_clicked, 59, 59),
             Button(self.game, SCREEN_WIDTH // 2, 682, 'replay_button.png', self.replay_button_clicked, 59, 59),
             Button(self.game, 1222, 395, 'down_button.png', self.show_stats_button_clicked, 55, 55),
             Button(self.game, 1222, 395, 'up_button.png', self.hide_stats_button_clicked, 55, 55)
         ]
-        self.start_node_pos = (0, 0)
         self.maze_surface_pos = (353, 73)
         self.maze_surface_width = 575
         self.maze_surface_height = 575
-        self.maze_width = 100
-        self.maze_height = 100
+        self.maze_width = 20
+        self.maze_height = 20
         self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
+        self.start_node_pos = (0, 0)
         self.goal_node_pos = (self.maze_width - 1, self.maze_height - 1)
         self.dijkstra = self.maze.setup_dijkstra(self.start_node_pos, self.goal_node_pos)
-        self.astar = None
+        self.astar = self.maze.setup_astar(self.start_node_pos, self.goal_node_pos)
+        self.current_algorithm_name = "Dijkstra's"
         self.current_algorithm = self.dijkstra
         self.next_animation_time = 0
         self.animation_delay = 50 # ms between each animation frame
@@ -1550,6 +1626,8 @@ class EducationMode:
             button.draw()
         self.maze.draw(self.game.screen, self.current_algorithm, self.path, self.path_pointer)
         self.draw_stats()
+        self.draw_maze_dimension_controls()
+        self.draw_algorithm_switcher()
 
         if self.show_stats:
             self.buttons[-1].draw() # Draw hide stats button
@@ -1612,8 +1690,12 @@ class EducationMode:
         self.is_paused = True
 
     def replay_button_clicked(self):
-        self.dijkstra = self.maze.setup_dijkstra(self.start_node_pos, self.goal_node_pos)
-        self.current_algorithm = self.dijkstra
+        if self.current_algorithm_name == "Dijkstra's":
+            self.dijkstra = self.maze.setup_dijkstra(self.start_node_pos, self.goal_node_pos)
+            self.current_algorithm = self.dijkstra
+        else:
+            self.astar = self.maze.setup_astar(self.start_node_pos, self.goal_node_pos)
+            self.current_algorithm = self.astar
         self.stop_animation = False
         self.stop_path_animation = False
         self.is_paused = False
@@ -1628,6 +1710,49 @@ class EducationMode:
 
     def speed_up_button_clicked(self):
         self.animation_delay = max(0, self.animation_delay - 50)
+
+    def decrement_width(self):
+        self.maze_width = max(6, self.maze_width - 1)
+
+    def increment_width(self):
+        self.maze_width = min(50, self.maze_width + 1)
+
+    def decrement_height(self):
+        self.maze_height = max(6, self.maze_height - 1)
+
+    def increment_height(self):
+        self.maze_height = min(50, self.maze_height + 1)
+
+    def refresh_button_clicked(self):
+        self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height)
+        self.start_node_pos = (0, 0)
+        self.goal_node_pos = (self.maze_width - 1, self.maze_height - 1)
+        if self.current_algorithm_name == "Dijkstra's":
+            self.dijkstra = self.maze.setup_dijkstra(self.start_node_pos, self.goal_node_pos)
+            self.current_algorithm = self.dijkstra
+        else:
+            self.astar = self.maze.setup_astar(self.start_node_pos, self.goal_node_pos)
+            self.current_algorithm = self.astar
+        self.stop_animation = False
+        self.stop_path_animation = False
+        self.is_paused = True
+        self.path = None
+        self.path_pointer = 0
+        self.visited_nodes = 0
+        self.queued_nodes = 0
+        self.path_length = 0
+
+    def previous_button_clicked(self):
+        if self.current_algorithm_name == "Dijkstra's":
+            self.current_algorithm_name = 'A*'
+        else:
+            self.current_algorithm_name = "Dijkstra's"
+
+    def next_button_clicked(self):
+        if self.current_algorithm_name == "Dijkstra's":
+            self.current_algorithm_name = 'A*'
+        else:
+            self.current_algorithm_name = "Dijkstra's"
 
     def run_animation(self):
         if not self.is_paused:
@@ -1695,7 +1820,63 @@ class EducationMode:
             pg.draw.rect(self.game.screen, PINK, self.queued_nodes_rect)
             pg.draw.rect(self.game.screen, DARK_GREEN, self.path_length_rect)
 
+    def draw_maze_dimension_controls(self):
+        draw_text( # Width title
+            self.game.screen,
+            'Width:',
+            (SCREEN_WIDTH - self.maze_surface_pos[0] - self.maze_surface_width) // 2,
+            147,
+            self.UI_label_font,
+            WHITE,
+            'center'
+        )
+        draw_text( # Width value
+            self.game.screen,
+            str(self.maze_width),
+            (SCREEN_WIDTH - self.maze_surface_pos[0] - self.maze_surface_width) // 2 + 5,
+            202,
+            self.UI_text_font1,
+            WHITE,
+            'center'
+        )
+        draw_text( # Height title
+            self.game.screen,
+            'Height:',
+            (SCREEN_WIDTH - self.maze_surface_pos[0] - self.maze_surface_width) // 2,
+            299,
+            self.UI_label_font,
+            WHITE,
+            'center'
+        )
+        draw_text( # Height value
+            self.game.screen,
+            str(self.maze_height),
+            (SCREEN_WIDTH - self.maze_surface_pos[0] - self.maze_surface_width) // 2 + 5,
+            354,
+            self.UI_text_font1,
+            WHITE,
+            'center'
+        )
 
+    def draw_algorithm_switcher(self):
+        draw_text( # Algorithm switcher title
+            self.game.screen,
+            'Algorithm:',
+            (SCREEN_WIDTH - self.maze_surface_pos[0] - self.maze_surface_width) // 2,
+            451,
+            self.UI_label_font,
+            WHITE,
+            'center'
+        )
+        draw_text( # Current algorithm
+            self.game.screen,
+            self.current_algorithm_name,
+            (SCREEN_WIDTH - self.maze_surface_pos[0] - self.maze_surface_width) // 2 + 5,
+            506,
+            self.UI_text_font1,
+            WHITE,
+            'center'
+        )
 
 
 
