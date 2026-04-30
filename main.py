@@ -1584,6 +1584,8 @@ class EducationMode:
             Button(self.game, SCREEN_WIDTH // 2, 682, 'play_button2.png', self.play_button_clicked, 59, 59),
             Button(self.game, SCREEN_WIDTH // 2, 682, 'pause_button.png', self.pause_button_clicked, 59, 59),
             Button(self.game, SCREEN_WIDTH // 2, 682, 'replay_button.png', self.replay_button_clicked, 59, 59),
+            Button(self.game, 1222, 147, 'down_button.png', self.show_info_button_clicked, 55, 55),
+            Button(self.game, 1222, 147, 'up_button.png', self.hide_info_button_clicked, 55, 55),
             Button(self.game, 1222, 395, 'down_button.png', self.show_stats_button_clicked, 55, 55),
             Button(self.game, 1222, 395, 'up_button.png', self.hide_stats_button_clicked, 55, 55)
         ]
@@ -1599,6 +1601,7 @@ class EducationMode:
         self.astar = self.maze.setup_astar(self.start_node_pos, self.goal_node_pos)
         self.current_algorithm_name = "Dijkstra's"
         self.current_algorithm = self.dijkstra
+        self.status = "Ready"
         self.next_animation_time = 0
         self.animation_delay = 50 # ms between each animation frame
         self.stop_animation = False
@@ -1611,9 +1614,23 @@ class EducationMode:
         self.path_length = 0
         self.show_stats = False
         self.show_info = False
+        self.lines = [
+            "Dijkstra's Algorithm:",
+            "",
+            "Finds shortest path from start to goal",
+            "Explores nodes by lowest distance",
+            "Selects node with lowest distance",
+            "",
+            "No heuristic used",
+            "",
+            f"Status: {self.status}"
+        ]
         self.UI_label_font = pg.font.Font(MONTSERRAT_BOLD, 26)
         self.UI_text_font1 = pg.font.Font(MONTSERRAT_REG, 26)
         self.UI_text_font2 = pg.font.Font(MONTSERRAT_REG, 16)
+        self.title = "Visualiser"
+        self.title_colour = CYAN
+        self.title_text_font = pg.font.Font(PARKVANE, 50)
         self.horizontal_line1 = pg.Rect(970, 168, 265, 2)
         self.horizontal_line2 = pg.Rect(970, 416, 265, 2)
         self.visited_nodes_rect = pg.Rect(988, 436, 9, 9)
@@ -1622,12 +1639,19 @@ class EducationMode:
 
     def draw(self):
         self.game.screen.blit(self.image,(0,0))
-        for button in self.buttons[:-5]:
+        for button in self.buttons[:-7]:
             button.draw()
         self.maze.draw(self.game.screen, self.current_algorithm, self.path, self.path_pointer)
+        self.draw_info()
         self.draw_stats()
         self.draw_maze_dimension_controls()
         self.draw_algorithm_switcher()
+        self.draw_title()
+
+        if self.show_info:
+            self.buttons[-3].draw() # Draw hide info button
+        else:
+            self.buttons[-4].draw() # Draw show info button
 
         if self.show_stats:
             self.buttons[-1].draw() # Draw hide stats button
@@ -1635,11 +1659,11 @@ class EducationMode:
             self.buttons[-2].draw() # Draw show stats button
 
         if self.stop_path_animation:
-            self.buttons[-3].draw() # Draw replay button
+            self.buttons[-5].draw() # Draw replay button
         elif self.is_paused:
-            self.buttons[-5].draw() # Draw play button
+            self.buttons[-7].draw() # Draw play button
         else:
-            self.buttons[-4].draw() # Draw pause button
+            self.buttons[-6].draw() # Draw pause button
 
     def update(self):
         self.run_animation()
@@ -1651,13 +1675,16 @@ class EducationMode:
         self.queued_nodes = len(self.current_algorithm.open_set)
         if self.path:
             self.path_length = len(self.path[:self.path_pointer + 1])
-
-    def reset(self):
-        pass
+        self.update_info()
 
     def buttons_clicked(self):
-        for button in self.buttons[:-5]:
+        for button in self.buttons[:-7]:
             button.clicked()
+        
+        if self.show_info:
+            self.buttons[-3].clicked() # Hide info button clicked
+        else:
+            self.buttons[-4].clicked() # Show info button clicked
 
         if self.show_stats:
             self.buttons[-1].clicked() # Hide stats button clicked
@@ -1665,17 +1692,23 @@ class EducationMode:
             self.buttons[-2].clicked() # Show stats button clicked
 
         if self.stop_path_animation:
-            self.buttons[-3].clicked() # Replay button clicked
+            self.buttons[-5].clicked() # Replay button clicked
         elif self.is_paused:
-            self.buttons[-5].clicked() # Play button clicked
+            self.buttons[-7].clicked() # Play button clicked
         else:
-            self.buttons[-4].clicked() # Pause button clicked
+            self.buttons[-6].clicked() # Pause button clicked
 
     def back_button_clicked(self):
         self.game.state = self.game.title_screen
 
     def settings_button_clicked(self):
         print('Settings button clicked.')
+
+    def show_info_button_clicked(self):
+        self.show_info = True
+
+    def hide_info_button_clicked(self):
+        self.show_info = False
 
     def show_stats_button_clicked(self):
         self.show_stats = True
@@ -1733,6 +1766,7 @@ class EducationMode:
         else:
             self.astar = self.maze.setup_astar(self.start_node_pos, self.goal_node_pos)
             self.current_algorithm = self.astar
+        self.status = "Ready"
         self.stop_animation = False
         self.stop_path_animation = False
         self.is_paused = True
@@ -1757,6 +1791,7 @@ class EducationMode:
     def run_animation(self):
         if not self.is_paused:
             if not self.stop_animation:
+                self.status = "Exploring"
                 current_time = pg.time.get_ticks()
                 if current_time - self.next_animation_time > self.animation_delay:
                     output = self.current_algorithm.run_frame()
@@ -1768,13 +1803,67 @@ class EducationMode:
                         self.stop_animation = output
 
             elif not self.stop_path_animation and self.path:
+                self.status = "Goal found - retracing path"
                 current_time = pg.time.get_ticks()
                 if current_time - self.next_animation_time > self.animation_delay:
                     if self.path_pointer < len(self.path) - 1:
                         self.path_pointer += 1
                         self.next_animation_time = current_time
                     else:
+                        self.status = "Finished"
                         self.stop_path_animation = True
+
+    def update_info(self):
+        if self.current_algorithm_name == "Dijkstra's":
+            self.lines = [
+                "Dijkstra's Algorithm:",
+                "",
+                "Finds shortest path from start to goal",
+                "Explores nodes by lowest distance",
+                "Selects node with lowest distance",
+                "",
+                "No heuristic used",
+                "",
+                f"Status: {self.status}"
+            ]
+        else:
+            self.lines = [
+                "A* Algorithm:",
+                "",
+                "Finds shortest path from start to goal",
+                "Uses distance + heuristic",
+                "Selects node with lowest f(n)",
+                "f(n) = g(n) + h(n)",
+                "",
+                "Usually faster than Dijkstra's",
+                f"Status: {self.status}"
+            ]
+
+    def draw_info(self):
+        draw_text( # Info title
+            self.game.screen,
+            'Info:',
+            (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2,
+            147,
+            self.UI_label_font,
+            WHITE,
+            'center'
+        )
+        pg.draw.rect(self.game.screen, WHITE, self.horizontal_line1)
+
+        if self.show_info:
+            line_spacing = 20
+            for i, line in enumerate(self.lines):
+                draw_text( # Each line
+                    self.game.screen,
+                    line,
+                    (SCREEN_WIDTH + self.maze_surface_pos[0] + self.maze_surface_width) // 2,
+                    191 + i * line_spacing,
+                    self.UI_text_font2,
+                    WHITE,
+                    'center'
+                )
+            
 
     def draw_stats(self):
         draw_text( # Stats title
@@ -1787,6 +1876,7 @@ class EducationMode:
             'center'
         )
         pg.draw.rect(self.game.screen, WHITE, self.horizontal_line2)
+
         if self.show_stats:
             draw_text( # Visited nodes stat
                 self.game.screen,
@@ -1877,6 +1967,18 @@ class EducationMode:
             WHITE,
             'center'
         )
+
+    def draw_title(self):
+        draw_text(
+            self.game.screen,
+            self.title,
+            SCREEN_WIDTH // 2,
+            self.maze_surface_pos[1] // 2 + 4,
+            self.title_text_font,
+            self.title_colour,
+            'center'
+        )
+
 
 
 
