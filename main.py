@@ -862,7 +862,7 @@ class Button:
 
     def draw(self, index = 0):
         self.game.screen.blit( # Draws correct image according to theme/state
-            self.images[min(len(self.images) - 1, index)],
+            self.images[min(len(self.images) - 1, index)], # Range check to prevent index error
             self.rect
         )
     
@@ -980,7 +980,7 @@ class Maze:
                 self.stack.pop()
 
     def draw(self, screen, pathfinding_algorithm = None, path = None, path_pointer = None, wall_colour = WHITE): # Draws the maze
-        wall_thickness = max(self.cell_size // 12, 1) # Cell size : Wall thickenss ratio - minimum 1px
+        wall_thickness = max(self.cell_size // 12, 1) # Range check - cell size : wall thickness ratio - minimum 1px
 
         # Draws the colour coding of the pathfinding algorithm visualiser
         if pathfinding_algorithm:
@@ -995,7 +995,7 @@ class Maze:
                         colour = CYAN # Represents start node
                     elif cell == pathfinding_algorithm.goal_node:
                         colour = GOLD # Represents goal node
-                    elif path and cell in path[:path_pointer + 1]:
+                    elif path and cell in path[:path_pointer + 1]: # Includes presence check
                         colour = DARK_GREEN # Represents path node if exists
                     elif cell == pathfinding_algorithm.current_node:
                         colour = RED # Represents current node
@@ -1035,7 +1035,7 @@ class Maze:
         self.draw_border(screen, wall_colour)
 
     def draw_border(self, screen, wall_colour = WHITE): # Draws border around the maze
-        wall_thickness = max(self.cell_size // 12, 1) # Cell size : Wall thickenss ratio - minimum 1px
+        wall_thickness = max(self.cell_size // 12, 1) # Range check - cell size : wall thickness ratio - minimum 1px
         # Draws border
         top_border = pg.Rect( # Draws top border
             self.start_x - wall_thickness,
@@ -1280,7 +1280,7 @@ class Player:
             self.handle_backtracking() # Corrects trail animation when backtracking
 
     def draw_trail(self):
-        trail_thickness = max(self.maze.cell_size // 3, 1)
+        trail_thickness = max(self.maze.cell_size // 3, 1) # Range check - trail thickness is minimum 1px
         for i in range(len(self.trail) - 1): # Draws the static part of the trail
             start_pos = self.trail[i]
             end_pos = self.trail[i + 1]
@@ -1893,7 +1893,7 @@ class EducationMode:
                 if self.maze.array[x][y].is_path_visited:
                     self.visited_nodes += 1
         self.queued_nodes = len(self.current_algorithm.open_set) # Updates no. queued nodes
-        if self.path:
+        if self.path: # Presence check
             self.path_length = len(self.path[:self.path_pointer + 1]) # Updates final path length
         self.update_info() # Updates info text
 
@@ -1967,22 +1967,22 @@ class EducationMode:
         self.path_length = 0
 
     def slow_down_button_clicked(self):
-        self.animation_delay = min(500, self.animation_delay + 50) # Animation delay is capped to 500
+        self.animation_delay = min(500, self.animation_delay + 50) # Range check - animation delay is capped to 500
 
     def speed_up_button_clicked(self):
-        self.animation_delay = max(0, self.animation_delay - 50) # Animation delay cannot be negative
+        self.animation_delay = max(0, self.animation_delay - 50) # Range check - animation delay cannot be negative
 
     def decrement_width(self):
-        self.maze_width = max(6, self.maze_width - 1) # Maze width cannot go below 6 as this will lead to UI elements overlapping
+        self.maze_width = max(6, self.maze_width - 1) # Range check - maze width cannot go below 6 as this will lead to UI elements overlapping
 
     def increment_width(self):
-        self.maze_width = min(50, self.maze_width + 1) # Maze width is capped to 50 as the game performance will slow down beyond 50
+        self.maze_width = min(50, self.maze_width + 1) # Range check - maze width is capped to 50 as the game performance will slow down beyond 50
 
     def decrement_height(self):
-        self.maze_height = max(6, self.maze_height - 1) # Maze height cannot go below 6 as this will lead to UI elements overlapping
+        self.maze_height = max(6, self.maze_height - 1) # Range check - maze height cannot go below 6 as this will lead to UI elements overlapping
 
     def increment_height(self):
-        self.maze_height = min(50, self.maze_height + 1) # Maze height is capped to 50 as the game performance will slow down beyond 50
+        self.maze_height = min(50, self.maze_height + 1) # Range check - maze height is capped to 50 as the game performance will slow down beyond 50
 
     def refresh_button_clicked(self):
         self.maze = Maze(self.maze_width, self.maze_height, self.maze_surface_pos, self.maze_surface_width, self.maze_surface_height) # Generates new maze
