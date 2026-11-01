@@ -148,7 +148,6 @@ Progress is stored as plain JSON in the `data` folder. Delete or edit these file
 ## Credits
 
 - Built by [Safwaan Shareef](https://github.com/Saf-X)
-- Fonts: Montserrat and Parkvane \[add licence details\]
 - Music and sound effects: \[add sources\]
 
 ## Licence
