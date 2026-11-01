@@ -2,7 +2,7 @@
 
 A Pygame maze game with two ways to play and an education mode that animates how Dijkstra's and A\* algorithms find the shortest path through a maze.
 
-&#91;Add a screenshot or GIF here once it's in your repo, e.g. screenshots/gameplay.png\]
+<img width="426" height="240" alt="Maze Master" src="https://github.com/user-attachments/assets/d11d5fd3-00d0-4a48-95d5-d81501e07333" />
 
 ## Features
 
