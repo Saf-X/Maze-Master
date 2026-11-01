@@ -3,7 +3,9 @@
 A Pygame maze game with two ways to play and an education mode that animates how Dijkstra's and A\* algorithms find the shortest path through a maze.
 
 <img width="426" height="240" alt="Maze Master 2" src="https://github.com/user-attachments/assets/58d75bc6-5a38-47c4-b92f-c46e66a0ebc6" />
+
 <img width="426" height="240" alt="Maze Master" src="https://github.com/user-attachments/assets/d11d5fd3-00d0-4a48-95d5-d81501e07333" />
+
 <img width="426" height="240" alt="Maze Master 3" src="https://github.com/user-attachments/assets/e5b6a957-782b-4eb2-9844-dd01558187ae" />
 
 
